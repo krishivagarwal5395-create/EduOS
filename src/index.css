@@ -1,0 +1,148 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+@import "tailwindcss";
+@plugin "@tailwindcss/typography";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Space Grotesk", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+}
+
+/* ==========================================================================
+   Universal Smooth Scrolling & Laptop Scrolling Optimization
+   ========================================================================== */
+html {
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+}
+
+body {
+  scroll-behavior: smooth;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+}
+
+/* Enable hardware-accelerated smooth scrolling across all scroll containers */
+* {
+  scroll-behavior: smooth;
+}
+
+/* Custom Sleek Scrollbar for laptops, trackpads, and desktops */
+::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(15, 23, 42, 0.4);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.28);
+  border-radius: 9999px;
+  border: 1px solid transparent;
+  background-clip: content-box;
+  transition: background-color 0.2s ease-in-out;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(129, 140, 248, 0.6);
+  background-clip: content-box;
+}
+
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* Firefox standard scrollbar */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148, 163, 184, 0.3) rgba(15, 23, 42, 0.3);
+}
+
+.smooth-scroll {
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+
+/* Custom styles for physical-feeling 3D card flips */
+.perspective-1000 {
+  perspective: 1000px;
+}
+.transform-style-3d {
+  transform-style: preserve-3d;
+}
+.backface-hidden {
+  backface-visibility: hidden;
+}
+.rotate-y-180 {
+  transform: rotateY(180deg);
+}
+
+@layer utilities {
+  .prose h1, .prose h2, .prose h3 {
+    font-family: var(--font-display);
+    font-weight: 600;
+    color: var(--color-slate-800);
+    margin-top: 1.25rem;
+    margin-bottom: 0.5rem;
+  }
+  .prose h1 { font-size: 1.25rem; }
+  .prose h2 { font-size: 1.1rem; }
+  .prose h3 { font-size: 1rem; }
+  .prose ul, .prose ol {
+    margin-left: 1.25rem;
+    margin-bottom: 0.75rem;
+    list-style-type: disc;
+  }
+  .prose li {
+    margin-bottom: 0.25rem;
+  }
+}
+
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  
+  /* Print Modal */
+  #modal_scrollable_panel, #modal_scrollable_panel * {
+    visibility: visible;
+  }
+  #modal_scrollable_panel {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    background: transparent;
+    border: none;
+    box-shadow: none;
+    color: black;
+  }
+  
+  /* Print results within TeacherView */
+  #lesson_result_box, #lesson_result_box *,
+  #worksheet_result_box, #worksheet_result_box *,
+  #exam_result_box, #exam_result_box *,
+  #notebook_result_panel, #notebook_result_panel * {
+    visibility: visible;
+    color: black !important;
+  }
+
+  #lesson_result_box, #worksheet_result_box, #exam_result_box, #notebook_result_panel {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+  }
+
+  /* Hide buttons during print */
+  button {
+    display: none !important;
+  }
+}

@@ -1,0 +1,61 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "User UID" },
+        "email": { "type": "string", "description": "User email address" },
+        "displayName": { "type": "string", "description": "User display name" },
+        "photoURL": { "type": "string", "description": "User profile photo URL" },
+        "role": { "type": "string", "enum": ["teacher", "admin", "student"], "description": "User role" },
+        "createdAt": { "type": "string", "description": "Account creation timestamp" },
+        "lastLoginAt": { "type": "string", "description": "Last sign-in timestamp" }
+      },
+      "required": ["uid", "email"]
+    },
+    "SavedItem": {
+      "title": "SavedItem",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Item unique identifier" },
+        "userId": { "type": "string", "description": "User ID who owns this saved item" },
+        "type": { "type": "string", "description": "Content type" },
+        "title": { "type": "string", "description": "Title of the saved material" },
+        "date": { "type": "string", "description": "Formatted date string" },
+        "data": { "type": "object", "description": "Arbitrary curriculum JSON payload" },
+        "createdAt": { "type": "string", "description": "Creation timestamp" },
+        "updatedAt": { "type": "string", "description": "Last modified timestamp" }
+      },
+      "required": ["id", "userId", "type", "title", "data"]
+    },
+    "UserPreferences": {
+      "title": "UserPreferences",
+      "type": "object",
+      "properties": {
+        "lessonPlan": { "type": "string" },
+        "worksheet": { "type": "string" },
+        "exam": { "type": "string" },
+        "slipTest": { "type": "string" },
+        "presentation": { "type": "string" },
+        "youtubeScript": { "type": "string" },
+        "generalTone": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      }
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profile documents"
+    },
+    "/users/{userId}/savedItems/{itemId}": {
+      "schema": "SavedItem",
+      "description": "User's cloud-stored educational materials and quizzes"
+    },
+    "/users/{userId}/preferences/{prefId}": {
+      "schema": "UserPreferences",
+      "description": "User custom generation settings and preferences"
+    }
+  }
+}

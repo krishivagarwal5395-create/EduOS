@@ -1,0 +1,6 @@
+{
+  "name": "EduOS AI",
+  "description": "An advanced educational AI assistant designed to help teachers with customized curriculum structures, professional lesson planning, original worksheets, and exam question preparation.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
