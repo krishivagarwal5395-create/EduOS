@@ -59,11 +59,17 @@ export default function GoogleAuthProfile({
       const res = await signInWithGoogle();
       if (res.error) {
         setAuthError(res.error);
-      } else {
+      } else if (!res.cancelled && res.user) {
         setIsOpen(false);
       }
     } catch (e: any) {
-      setAuthError(e.message || "Failed to sign in with Google");
+      if (
+        e?.code !== 'auth/popup-closed-by-user' && 
+        e?.code !== 'auth/cancelled-popup-request' &&
+        e?.code !== 'auth/user-cancelled'
+      ) {
+        setAuthError(e.message || "Failed to sign in with Google");
+      }
     } finally {
       setIsSigningIn(false);
     }

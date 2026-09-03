@@ -20,9 +20,12 @@ import {
   Zap,
   Star,
   ChevronUp,
-  ChevronDown
+  ChevronDown,
+  Edit2,
+  Settings2
 } from "lucide-react";
 import { ClassroomTeam, QuizQuestionItem } from "../types";
+import EditTeamsModal from "./EditTeamsModal";
 
 export interface QuizLeaderboardProps {
   teams: ClassroomTeam[];
@@ -33,6 +36,8 @@ export interface QuizLeaderboardProps {
   onResetScores?: () => void;
   onAddTeam?: (team: { name: string; captainName: string; color: string }) => void;
   onRemoveTeam?: (teamId: string) => void;
+  onUpdateTeams?: (updatedTeams: ClassroomTeam[]) => void;
+  onOpenEditTeamsModal?: () => void;
   soundEnabled?: boolean;
   onToggleSound?: () => void;
   isCompact?: boolean;
@@ -49,6 +54,8 @@ export default function QuizLeaderboard({
   onResetScores,
   onAddTeam,
   onRemoveTeam,
+  onUpdateTeams,
+  onOpenEditTeamsModal,
   soundEnabled = true,
   onToggleSound,
   isCompact = false,
@@ -58,6 +65,7 @@ export default function QuizLeaderboard({
   const [viewMode, setViewMode] = useState<"race" | "podium" | "cards">(isCompact ? "race" : "race");
   const [lastAwardedTeamId, setLastAwardedTeamId] = useState<string | null>(null);
   const [lastPointChange, setLastPointChange] = useState<number | null>(null);
+  const [showEditTeamsModal, setShowEditTeamsModal] = useState<boolean>(false);
   const [showAddTeamModal, setShowAddTeamModal] = useState(false);
   const [newTeamName, setNewTeamName] = useState("");
   const [newCaptainName, setNewCaptainName] = useState("");
@@ -213,12 +221,28 @@ export default function QuizLeaderboard({
             </button>
           )}
 
+          {/* Edit Teams Modal Trigger */}
+          <button
+            onClick={() => {
+              if (onOpenEditTeamsModal) {
+                onOpenEditTeamsModal();
+              } else {
+                setShowEditTeamsModal(true);
+              }
+            }}
+            className="px-2.5 py-1.5 rounded-xl bg-purple-600/25 hover:bg-purple-600/40 border border-purple-500/40 text-purple-200 text-xs font-bold flex items-center gap-1.5 transition-all shadow-sm"
+            title="Edit Teams, Captains, Colors & Points"
+          >
+            <Settings2 className="w-3.5 h-3.5 text-purple-400" />
+            <span>Edit Teams</span>
+          </button>
+
           {/* Add Team Modal Trigger */}
           {onAddTeam && (
             <button
               onClick={() => setShowAddTeamModal(true)}
               className="p-1.5 rounded-xl bg-white/10 hover:bg-white/15 border border-white/15 text-white transition-colors"
-              title="Add Team"
+              title="Quick Add Team"
             >
               <Plus className="w-3.5 h-3.5" />
             </button>
@@ -703,6 +727,21 @@ export default function QuizLeaderboard({
             </form>
           </div>
         </div>
+      )}
+
+      {/* 6. EDIT TEAMS MODAL */}
+      {showEditTeamsModal && (
+        <EditTeamsModal
+          isOpen={showEditTeamsModal}
+          onClose={() => setShowEditTeamsModal(false)}
+          teams={teams}
+          onSaveTeams={(updated) => {
+            if (onUpdateTeams) {
+              onUpdateTeams(updated);
+            }
+          }}
+          onResetScores={onResetScores}
+        />
       )}
     </div>
   );

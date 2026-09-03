@@ -4,11 +4,13 @@ import {
   HelpCircle, Eye, EyeOff, Award, ChevronRight, ChevronLeft, 
   Plus, Trash2, Edit3, Bookmark, RotateCcw, Volume2, VolumeX, ShieldCheck, 
   Timer, Flame, BookOpen, Star, Crown, Play, Pause, Check, X, FileText, FileDown, Save,
-  Maximize2, Minimize2, Lightbulb, Zap, PartyPopper
+  Maximize2, Minimize2, Lightbulb, Zap, PartyPopper, Settings2, Columns, LayoutDashboard,
+  BarChart2, Presentation
 } from "lucide-react";
 import { ClassroomQuiz, ClassroomTeam, QuizQuestionItem, SavedItem, CustomInstructions } from "../types";
 import { handleExportTeacherAnswerKeyPDF, handleExportTeacherAnswerKeyWord, handleExportToPDF, handleExportToWord } from "../utils/exportUtils";
 import QuizLeaderboard from "./QuizLeaderboard";
+import EditTeamsModal from "./EditTeamsModal";
 
 // Web Audio API Synthesizer for Quiz SFX
 class QuizAudioEngine {
@@ -207,6 +209,8 @@ export default function ClassroomQuizMaker({
 
   // Fullscreen, Audio & Timer States
   const [isFullScreen, setIsFullScreen] = useState<boolean>(false);
+  const [fullscreenLayoutMode, setFullscreenLayoutMode] = useState<"split" | "question" | "leaderboard">("split");
+  const [showEditTeamsModal, setShowEditTeamsModal] = useState<boolean>(false);
   const [soundEnabled, setSoundEnabled] = useState<boolean>(true);
   const [timerDuration, setTimerDuration] = useState<number>(30); // 15, 30, 45, 60, 90, 0=off
   const [timerRemaining, setTimerRemaining] = useState<number>(30);
@@ -318,8 +322,23 @@ export default function ClassroomQuizMaker({
         return;
       }
 
-      if (e.key === 'Escape' && isFullScreen) {
-        setIsFullScreen(false);
+      if (e.key === 'Escape') {
+        if (showEditTeamsModal) {
+          setShowEditTeamsModal(false);
+          return;
+        }
+        if (showFullscreenTeacherHUD) {
+          setShowFullscreenTeacherHUD(false);
+          return;
+        }
+        if (isFullScreen) {
+          setIsFullScreen(false);
+          return;
+        }
+      }
+
+      if (e.key.toLowerCase() === 'e' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        setShowEditTeamsModal(prev => !prev);
         return;
       }
 
@@ -824,11 +843,19 @@ export default function ClassroomQuizMaker({
               
               <div className="flex items-center gap-1.5">
                 <button
+                  onClick={() => setShowEditTeamsModal(true)}
+                  className="px-2.5 py-1 rounded-lg bg-purple-600/30 hover:bg-purple-600/50 border border-purple-500/40 text-[11px] font-bold text-purple-200 flex items-center gap-1 transition-all"
+                  title="Edit Teams, Captains, Colors & Points"
+                >
+                  <Settings2 className="w-3 h-3" />
+                  <span>Edit</span>
+                </button>
+                <button
                   onClick={handleResetScores}
-                  className="px-2 py-1 rounded bg-white/5 hover:bg-white/10 text-[10px] font-semibold text-slate-400 hover:text-white"
+                  className="px-2 py-1 rounded-lg bg-white/5 hover:bg-white/10 text-[10px] font-semibold text-slate-400 hover:text-white"
                   title="Reset all team scores"
                 >
-                  Reset Scores
+                  Reset
                 </button>
                 <button
                   onClick={() => setTeamFormOpen(prev => !prev)}
@@ -1105,6 +1132,8 @@ export default function ClassroomQuizMaker({
                   totalQuestions={quiz.questions.length}
                   onAwardPoints={handleAwardPoints}
                   onResetScores={handleResetScores}
+                  onUpdateTeams={(updated) => setTeams(updated)}
+                  onOpenEditTeamsModal={() => setShowEditTeamsModal(true)}
                   onAddTeam={(t) => {
                     setTeams(prev => [...prev, {
                       id: `team-${Date.now()}`,
@@ -1538,7 +1567,7 @@ export default function ClassroomQuizMaker({
       {/* FULL SCREEN GAME SHOW QUIZ ARENA */}
       {isFullScreen && quiz && currentQ && (
         <div 
-          className="fixed inset-0 z-50 bg-slate-950/98 backdrop-blur-3xl text-white flex flex-col justify-between p-4 sm:p-6 md:p-8 select-none overflow-y-auto smooth-scroll animate-fade-in"
+          className="fixed inset-0 z-50 bg-slate-950/98 backdrop-blur-3xl text-white flex flex-col justify-between p-3 sm:p-5 md:p-6 select-none overflow-y-auto smooth-scroll animate-fade-in"
           id="fullscreen_quiz_arena"
         >
           {/* Ambient Lighting Background Accents */}
@@ -1546,7 +1575,7 @@ export default function ClassroomQuizMaker({
           <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-purple-500/10 rounded-full blur-3xl pointer-events-none" />
 
           {/* 1. TOP ARENA HEADER */}
-          <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-4 border-b border-white/15 pb-4">
+          <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-3 border-b border-white/15 pb-3">
             
             {/* Title & Question Indicator */}
             <div className="flex items-center gap-3 flex-wrap">
@@ -1565,17 +1594,62 @@ export default function ClassroomQuizMaker({
                     {quiz.chapter}
                   </span>
                 </div>
-                <h2 className="text-base sm:text-lg font-bold text-white mt-0.5 truncate max-w-md">
+                <h2 className="text-sm sm:text-base font-bold text-white mt-0.5 truncate max-w-md">
                   {quiz.quizTitle}
                 </h2>
               </div>
             </div>
 
+            {/* Layout View Mode Switcher */}
+            <div className="flex items-center bg-white/10 p-1 rounded-2xl border border-white/15 text-xs">
+              <button
+                onClick={() => setFullscreenLayoutMode("split")}
+                className={`px-3 py-1.5 rounded-xl font-bold flex items-center gap-1.5 transition-all ${
+                  fullscreenLayoutMode === "split"
+                    ? "bg-amber-500 text-slate-950 shadow-md"
+                    : "text-slate-300 hover:text-white"
+                }`}
+                title="Split Screen: Question & Live Leaderboard Side-by-Side"
+              >
+                <Columns className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Split View</span>
+              </button>
+
+              <button
+                onClick={() => setFullscreenLayoutMode("question")}
+                className={`px-3 py-1.5 rounded-xl font-bold flex items-center gap-1.5 transition-all ${
+                  fullscreenLayoutMode === "question"
+                    ? "bg-amber-500 text-slate-950 shadow-md"
+                    : "text-slate-300 hover:text-white"
+                }`}
+                title="Focused Question Mode (Large Cards & Option Grid)"
+              >
+                <HelpCircle className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Question Focus</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  setFullscreenLayoutMode("leaderboard");
+                  quizAudio.playFanfare();
+                }}
+                className={`px-3 py-1.5 rounded-xl font-bold flex items-center gap-1.5 transition-all ${
+                  fullscreenLayoutMode === "leaderboard"
+                    ? "bg-amber-500 text-slate-950 shadow-md"
+                    : "text-slate-300 hover:text-white"
+                }`}
+                title="Full Leaderboard & Tournament Podium Stand"
+              >
+                <Crown className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Leaderboard</span>
+              </button>
+            </div>
+
             {/* 2. TIMER & COUNTDOWN HUD */}
-            <div className="flex items-center gap-2 bg-slate-900/90 border border-white/15 px-3.5 py-2 rounded-2xl shadow-xl backdrop-blur-md">
-              <div className="flex items-center gap-2">
-                <Timer className={`w-5 h-5 ${timerIsRunning ? 'text-amber-400 animate-spin' : 'text-slate-400'}`} />
-                <span className={`text-xl font-mono font-black tabular-nums ${
+            <div className="flex items-center gap-2 bg-slate-900/90 border border-white/15 px-3 py-1.5 rounded-2xl shadow-xl backdrop-blur-md">
+              <div className="flex items-center gap-1.5">
+                <Timer className={`w-4 h-4 ${timerIsRunning ? 'text-amber-400 animate-spin' : 'text-slate-400'}`} />
+                <span className={`text-lg font-mono font-black tabular-nums ${
                   timerRemaining <= 5 
                     ? 'text-rose-400 animate-pulse' 
                     : timerRemaining <= 10 
@@ -1588,11 +1662,11 @@ export default function ClassroomQuizMaker({
 
               {/* Timer Control Buttons */}
               {timerDuration > 0 && (
-                <div className="flex items-center gap-1 border-l border-white/15 pl-2 ml-1">
+                <div className="flex items-center gap-1 border-l border-white/15 pl-2 ml-0.5">
                   {timerIsRunning ? (
                     <button
                       onClick={handlePauseTimer}
-                      className="p-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/40 text-amber-300 transition-colors"
+                      className="p-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/40 text-amber-300 transition-colors"
                       title="Pause Timer (Spacebar)"
                     >
                       <Pause className="w-3.5 h-3.5" />
@@ -1600,7 +1674,7 @@ export default function ClassroomQuizMaker({
                   ) : (
                     <button
                       onClick={handleStartTimer}
-                      className="p-1.5 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/40 text-emerald-300 transition-colors"
+                      className="p-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/40 text-emerald-300 transition-colors"
                       title="Start Timer (Spacebar)"
                     >
                       <Play className="w-3.5 h-3.5" />
@@ -1608,7 +1682,7 @@ export default function ClassroomQuizMaker({
                   )}
                   <button
                     onClick={() => handleResetTimer()}
-                    className="p-1.5 rounded-lg text-slate-400 hover:text-white transition-colors"
+                    className="p-1 rounded-lg text-slate-400 hover:text-white transition-colors"
                     title="Reset Timer"
                   >
                     <RotateCcw className="w-3.5 h-3.5" />
@@ -1624,7 +1698,7 @@ export default function ClassroomQuizMaker({
                   setTimerDuration(val);
                   handleResetTimer(val);
                 }}
-                className="bg-slate-800 border border-white/10 rounded-lg text-xs text-slate-300 px-2 py-1 ml-1 focus:outline-none focus:border-amber-400 font-semibold"
+                className="bg-slate-800 border border-white/10 rounded-lg text-[11px] text-slate-300 px-2 py-0.5 focus:outline-none focus:border-amber-400 font-semibold"
               >
                 <option value={15}>15s</option>
                 <option value={30}>30s</option>
@@ -1635,12 +1709,22 @@ export default function ClassroomQuizMaker({
               </select>
             </div>
 
-            {/* 3. CONTROLS (Sound, Teacher HUD, Leaderboard, Exit) */}
+            {/* 3. CONTROLS (Edit Teams, Sound, Teacher HUD, Exit) */}
             <div className="flex items-center gap-2 flex-wrap">
+              {/* Edit Teams Button */}
+              <button
+                onClick={() => setShowEditTeamsModal(true)}
+                className="px-3 py-1.5 rounded-xl border border-purple-400/50 bg-purple-600/30 hover:bg-purple-600/50 text-purple-200 text-xs font-bold flex items-center gap-1.5 transition-all shadow-md"
+                title="Edit Teams, Captains, Colors & Points (Press E)"
+              >
+                <Settings2 className="w-3.5 h-3.5 text-purple-300" />
+                <span>Edit Teams (E)</span>
+              </button>
+
               {/* Sound Toggle */}
               <button
                 onClick={() => setSoundEnabled(prev => !prev)}
-                className={`p-2 rounded-xl border text-xs font-bold flex items-center gap-1.5 transition-all ${
+                className={`p-1.5 rounded-xl border text-xs font-bold flex items-center gap-1.5 transition-all ${
                   soundEnabled 
                     ? 'bg-purple-500/20 border-purple-400 text-purple-200 shadow-md shadow-purple-500/10' 
                     : 'bg-white/5 border-white/10 text-slate-400 hover:text-white'
@@ -1653,7 +1737,7 @@ export default function ClassroomQuizMaker({
               {/* Teacher HUD Toggle */}
               <button
                 onClick={() => setShowFullscreenTeacherHUD(prev => !prev)}
-                className={`px-3 py-2 rounded-xl border text-xs font-bold flex items-center gap-1.5 transition-all ${
+                className={`px-3 py-1.5 rounded-xl border text-xs font-bold flex items-center gap-1.5 transition-all ${
                   showFullscreenTeacherHUD 
                     ? 'bg-amber-500 border-amber-400 text-slate-950 font-extrabold shadow-lg shadow-amber-500/20' 
                     : 'bg-white/5 border-white/10 text-amber-300 hover:bg-white/10'
@@ -1664,30 +1748,11 @@ export default function ClassroomQuizMaker({
                 <span className="hidden sm:inline">Teacher HUD (T)</span>
               </button>
 
-              {/* Leaderboard Podium Toggle */}
-              <button
-                onClick={() => {
-                  setShowFullscreenLeaderboard(prev => !prev);
-                  if (!showFullscreenLeaderboard) {
-                    quizAudio.playFanfare();
-                  }
-                }}
-                className={`px-3 py-2 rounded-xl border text-xs font-bold flex items-center gap-1.5 transition-all ${
-                  showFullscreenLeaderboard 
-                    ? 'bg-gradient-to-r from-amber-500 to-yellow-500 text-slate-950 font-extrabold shadow-lg shadow-yellow-500/20' 
-                    : 'bg-white/5 border-white/10 text-yellow-300 hover:bg-white/10'
-                }`}
-                title="Toggle Live Leaderboard Podium (Press L)"
-              >
-                <Crown className="w-4 h-4 text-yellow-400" />
-                <span className="hidden sm:inline">Podium (L)</span>
-              </button>
-
               {/* Exit Fullscreen */}
               <button
                 onClick={toggleFullScreen}
-                className="px-3.5 py-2 rounded-xl border border-rose-500/30 bg-rose-500/20 hover:bg-rose-500/30 text-rose-200 text-xs font-bold flex items-center gap-1.5 transition-all"
-                title="Exit Full Screen (Esc or F)"
+                className="px-3 py-1.5 rounded-xl border border-rose-500/30 bg-rose-500/20 hover:bg-rose-500/30 text-rose-200 text-xs font-bold flex items-center gap-1.5 transition-all"
+                title="Exit Presentation Mode (Esc or F)"
               >
                 <Minimize2 className="w-4 h-4" />
                 <span>Exit</span>
@@ -1696,105 +1761,261 @@ export default function ClassroomQuizMaker({
 
           </div>
 
-          {/* 2. MAIN QUESTION STAGE (Projector Optimized) */}
-          <div className="relative z-10 max-w-6xl mx-auto w-full my-auto py-6 flex flex-col justify-center space-y-8">
-            
-            {/* Big Question Header */}
-            <div className="space-y-4 text-center">
-              <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs sm:text-sm font-bold font-mono">
-                <Sparkles className="w-4 h-4 text-amber-400" />
-                <span>CHAPTER CHALLENGE • {currentQ.points || 10} PTS</span>
-              </div>
-              <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-display font-black text-white leading-tight max-w-5xl mx-auto text-balance drop-shadow-md">
-                {currentQ.question}
-              </h1>
+          {/* 2. MAIN PRESENTATION BODY (According to layout mode) */}
+          {fullscreenLayoutMode === "leaderboard" ? (
+            /* FULL LEADERBOARD VIEW */
+            <div className="relative z-10 max-w-5xl mx-auto w-full my-auto py-4 animate-fade-in">
+              <QuizLeaderboard
+                teams={teams}
+                currentQuestion={currentQ}
+                currentQuestionIndex={currentQIndex}
+                totalQuestions={quiz.questions.length}
+                onAwardPoints={handleAwardPoints}
+                onResetScores={handleResetScores}
+                onUpdateTeams={(updated) => setTeams(updated)}
+                onOpenEditTeamsModal={() => setShowEditTeamsModal(true)}
+                onAddTeam={(t) => {
+                  setTeams(prev => [...prev, {
+                    id: `team-${Date.now()}`,
+                    name: t.name,
+                    captainName: t.captainName,
+                    color: t.color,
+                    score: 0,
+                    members: [t.captainName]
+                  }]);
+                }}
+                onRemoveTeam={handleRemoveTeam}
+                soundEnabled={soundEnabled}
+                onToggleSound={() => setSoundEnabled(prev => !prev)}
+                onPlayVictoryFanfare={() => quizAudio.playFanfare()}
+              />
             </div>
+          ) : fullscreenLayoutMode === "split" ? (
+            /* SPLIT PRESENTATION: QUESTION (LEFT) + LEADERBOARD (RIGHT) */
+            <div className="relative z-10 grid grid-cols-1 lg:grid-cols-12 gap-6 my-auto py-4 w-full max-w-7xl mx-auto items-start">
+              
+              {/* Left Column: Big Interactive Question & Options */}
+              <div className="lg:col-span-7 space-y-6 flex flex-col justify-center">
+                {/* Question Header */}
+                <div className="space-y-3">
+                  <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs font-bold font-mono">
+                    <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                    <span>QUESTION {currentQIndex + 1} OF {quiz.questions.length} • {currentQ.points || 10} PTS</span>
+                  </div>
+                  <h1 className="text-xl sm:text-2xl md:text-3xl font-display font-black text-white leading-snug drop-shadow-md">
+                    {currentQ.question}
+                  </h1>
+                </div>
 
-            {/* 4 Interactive Option Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 pt-2">
-              {currentQ.options?.map((opt, oIdx) => {
-                const isCorrect = oIdx === currentQ.correctOptionIndex;
-                const isRevealed = revealedOptions[oIdx] || (teacherMode && isCorrect && !isFullScreen);
-                const letter = String.fromCharCode(65 + oIdx);
+                {/* 4 Interactive Option Cards */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                  {currentQ.options?.map((opt, oIdx) => {
+                    const isCorrect = oIdx === currentQ.correctOptionIndex;
+                    const isRevealed = revealedOptions[oIdx] || (teacherMode && isCorrect && !isFullScreen);
+                    const letter = String.fromCharCode(65 + oIdx);
 
-                let cardClasses = "bg-slate-900/90 border-white/20 text-slate-100 hover:bg-slate-800 hover:border-amber-400/80 hover:scale-[1.01] shadow-xl";
-                if (revealedOptions[oIdx]) {
-                  if (isCorrect) {
-                    cardClasses = "bg-gradient-to-r from-emerald-950/90 to-teal-950/90 border-emerald-400 text-emerald-100 shadow-2xl shadow-emerald-500/30 ring-2 ring-emerald-400/60";
-                  } else {
-                    cardClasses = "bg-gradient-to-r from-rose-950/90 to-red-950/90 border-rose-500/80 text-rose-200 ring-1 ring-rose-500/40";
-                  }
-                }
+                    let cardClasses = "bg-slate-900/90 border-white/20 text-slate-100 hover:bg-slate-800 hover:border-amber-400/80 hover:scale-[1.01] shadow-xl";
+                    if (revealedOptions[oIdx]) {
+                      if (isCorrect) {
+                        cardClasses = "bg-gradient-to-r from-emerald-950/90 to-teal-950/90 border-emerald-400 text-emerald-100 shadow-2xl shadow-emerald-500/30 ring-2 ring-emerald-400/60";
+                      } else {
+                        cardClasses = "bg-gradient-to-r from-rose-950/90 to-red-950/90 border-rose-500/80 text-rose-200 ring-1 ring-rose-500/40";
+                      }
+                    }
 
-                return (
-                  <button
-                    key={oIdx}
-                    type="button"
-                    onClick={() => handleSelectOption(oIdx)}
-                    className={`p-5 sm:p-6 md:p-7 rounded-2xl sm:rounded-3xl border-2 text-left transition-all duration-200 flex items-center justify-between gap-4 group cursor-pointer ${cardClasses}`}
-                  >
-                    <div className="flex items-center gap-4 sm:gap-5 flex-1">
-                      <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-2xl flex items-center justify-center text-base sm:text-lg font-black font-mono shrink-0 shadow-md transition-colors ${
-                        revealedOptions[oIdx]
-                          ? isCorrect ? 'bg-emerald-400 text-slate-950' : 'bg-rose-500 text-white'
-                          : 'bg-white/10 text-white group-hover:bg-amber-400 group-hover:text-slate-950'
-                      }`}>
-                        {letter}
-                      </div>
-                      <div className="text-base sm:text-lg md:text-xl font-semibold leading-snug">
-                        {opt.replace(/^[A-D]\)\s*/, '')}
-                      </div>
-                    </div>
+                    return (
+                      <button
+                        key={oIdx}
+                        type="button"
+                        onClick={() => handleSelectOption(oIdx)}
+                        className={`p-4 rounded-2xl border-2 text-left transition-all duration-200 flex items-center justify-between gap-3 group cursor-pointer ${cardClasses}`}
+                      >
+                        <div className="flex items-center gap-3 flex-1">
+                          <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-sm font-black font-mono shrink-0 shadow-md transition-colors ${
+                            revealedOptions[oIdx]
+                              ? isCorrect ? 'bg-emerald-400 text-slate-950' : 'bg-rose-500 text-white'
+                              : 'bg-white/10 text-white group-hover:bg-amber-400 group-hover:text-slate-950'
+                          }`}>
+                            {letter}
+                          </div>
+                          <div className="text-sm sm:text-base font-semibold leading-snug">
+                            {opt.replace(/^[A-D]\)\s*/, '')}
+                          </div>
+                        </div>
 
-                    <div className="shrink-0 flex items-center gap-2">
-                      <span className="hidden sm:inline text-xs font-mono text-slate-500 group-hover:text-slate-300">
-                        [{letter}]
-                      </span>
-                      {revealedOptions[oIdx] && (
-                        <div>
-                          {isCorrect ? (
-                            <div className="w-8 h-8 rounded-full bg-emerald-500/30 border border-emerald-400 flex items-center justify-center">
-                              <Check className="w-5 h-5 text-emerald-300 animate-bounce" />
-                            </div>
-                          ) : (
-                            <div className="w-8 h-8 rounded-full bg-rose-500/30 border border-rose-400 flex items-center justify-center">
-                              <X className="w-5 h-5 text-rose-300" />
+                        <div className="shrink-0 flex items-center gap-1.5">
+                          <span className="hidden sm:inline text-[10px] font-mono text-slate-500 group-hover:text-slate-300">
+                            [{letter}]
+                          </span>
+                          {revealedOptions[oIdx] && (
+                            <div>
+                              {isCorrect ? (
+                                <div className="w-7 h-7 rounded-full bg-emerald-500/30 border border-emerald-400 flex items-center justify-center">
+                                  <Check className="w-4 h-4 text-emerald-300 animate-bounce" />
+                                </div>
+                              ) : (
+                                <div className="w-7 h-7 rounded-full bg-rose-500/30 border border-rose-400 flex items-center justify-center">
+                                  <X className="w-4 h-4 text-rose-300" />
+                                </div>
+                              )}
                             </div>
                           )}
                         </div>
-                      )}
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
+                      </button>
+                    );
+                  })}
+                </div>
 
-            {/* Clue Hint (If teacher wants to give students a hint) */}
-            {currentQ.teacherHint && (
-              <div className="flex justify-center pt-2">
-                {!showFullscreenHint ? (
-                  <button
-                    onClick={() => setShowFullscreenHint(true)}
-                    className="px-4 py-1.5 rounded-full bg-teal-500/15 border border-teal-500/30 text-teal-300 hover:bg-teal-500/25 text-xs font-bold flex items-center gap-1.5 transition-all shadow-md"
-                  >
-                    <Lightbulb className="w-3.5 h-3.5 text-teal-400" />
-                    <span>Reveal Classroom Hint</span>
-                  </button>
-                ) : (
-                  <div className="bg-teal-950/80 border border-teal-400/50 px-5 py-2.5 rounded-2xl text-teal-200 text-xs sm:text-sm font-medium flex items-center gap-2 shadow-lg animate-fade-in max-w-2xl">
-                    <Lightbulb className="w-4 h-4 text-teal-300 shrink-0" />
-                    <span><strong>Teacher Clue:</strong> {currentQ.teacherHint}</span>
+                {/* Clue Hint */}
+                {currentQ.teacherHint && (
+                  <div className="flex justify-start">
+                    {!showFullscreenHint ? (
+                      <button
+                        onClick={() => setShowFullscreenHint(true)}
+                        className="px-3.5 py-1.5 rounded-full bg-teal-500/15 border border-teal-500/30 text-teal-300 hover:bg-teal-500/25 text-xs font-bold flex items-center gap-1.5 transition-all shadow-md"
+                      >
+                        <Lightbulb className="w-3.5 h-3.5 text-teal-400" />
+                        <span>Reveal Classroom Hint</span>
+                      </button>
+                    ) : (
+                      <div className="bg-teal-950/80 border border-teal-400/50 px-4 py-2 rounded-2xl text-teal-200 text-xs font-medium flex items-center gap-2 shadow-lg animate-fade-in w-full">
+                        <Lightbulb className="w-4 h-4 text-teal-300 shrink-0" />
+                        <span><strong>Teacher Clue:</strong> {currentQ.teacherHint}</span>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
-            )}
 
-          </div>
+              {/* Right Column: Live Quiz Leaderboard Stream */}
+              <div className="lg:col-span-5 h-full">
+                <QuizLeaderboard
+                  teams={teams}
+                  currentQuestion={currentQ}
+                  currentQuestionIndex={currentQIndex}
+                  totalQuestions={quiz.questions.length}
+                  onAwardPoints={handleAwardPoints}
+                  onResetScores={handleResetScores}
+                  onUpdateTeams={(updated) => setTeams(updated)}
+                  onOpenEditTeamsModal={() => setShowEditTeamsModal(true)}
+                  onAddTeam={(t) => {
+                    setTeams(prev => [...prev, {
+                      id: `team-${Date.now()}`,
+                      name: t.name,
+                      captainName: t.captainName,
+                      color: t.color,
+                      score: 0,
+                      members: [t.captainName]
+                    }]);
+                  }}
+                  onRemoveTeam={handleRemoveTeam}
+                  soundEnabled={soundEnabled}
+                  onToggleSound={() => setSoundEnabled(prev => !prev)}
+                  onPlayVictoryFanfare={() => quizAudio.playFanfare()}
+                  isCompact={true}
+                />
+              </div>
+
+            </div>
+          ) : (
+            /* FOCUSED QUESTION VIEW (SINGLE SCREEN PROJECTOR) */
+            <div className="relative z-10 max-w-5xl mx-auto w-full my-auto py-6 flex flex-col justify-center space-y-8">
+              {/* Big Question Header */}
+              <div className="space-y-4 text-center">
+                <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs sm:text-sm font-bold font-mono">
+                  <Sparkles className="w-4 h-4 text-amber-400" />
+                  <span>CHAPTER CHALLENGE • {currentQ.points || 10} PTS</span>
+                </div>
+                <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-display font-black text-white leading-tight max-w-5xl mx-auto text-balance drop-shadow-md">
+                  {currentQ.question}
+                </h1>
+              </div>
+
+              {/* 4 Interactive Option Cards */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 pt-2">
+                {currentQ.options?.map((opt, oIdx) => {
+                  const isCorrect = oIdx === currentQ.correctOptionIndex;
+                  const isRevealed = revealedOptions[oIdx] || (teacherMode && isCorrect && !isFullScreen);
+                  const letter = String.fromCharCode(65 + oIdx);
+
+                  let cardClasses = "bg-slate-900/90 border-white/20 text-slate-100 hover:bg-slate-800 hover:border-amber-400/80 hover:scale-[1.01] shadow-xl";
+                  if (revealedOptions[oIdx]) {
+                    if (isCorrect) {
+                      cardClasses = "bg-gradient-to-r from-emerald-950/90 to-teal-950/90 border-emerald-400 text-emerald-100 shadow-2xl shadow-emerald-500/30 ring-2 ring-emerald-400/60";
+                    } else {
+                      cardClasses = "bg-gradient-to-r from-rose-950/90 to-red-950/90 border-rose-500/80 text-rose-200 ring-1 ring-rose-500/40";
+                    }
+                  }
+
+                  return (
+                    <button
+                      key={oIdx}
+                      type="button"
+                      onClick={() => handleSelectOption(oIdx)}
+                      className={`p-5 sm:p-6 md:p-7 rounded-2xl sm:rounded-3xl border-2 text-left transition-all duration-200 flex items-center justify-between gap-4 group cursor-pointer ${cardClasses}`}
+                    >
+                      <div className="flex items-center gap-4 sm:gap-5 flex-1">
+                        <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-2xl flex items-center justify-center text-base sm:text-lg font-black font-mono shrink-0 shadow-md transition-colors ${
+                          revealedOptions[oIdx]
+                            ? isCorrect ? 'bg-emerald-400 text-slate-950' : 'bg-rose-500 text-white'
+                            : 'bg-white/10 text-white group-hover:bg-amber-400 group-hover:text-slate-950'
+                        }`}>
+                          {letter}
+                        </div>
+                        <div className="text-base sm:text-lg md:text-xl font-semibold leading-snug">
+                          {opt.replace(/^[A-D]\)\s*/, '')}
+                        </div>
+                      </div>
+
+                      <div className="shrink-0 flex items-center gap-2">
+                        <span className="hidden sm:inline text-xs font-mono text-slate-500 group-hover:text-slate-300">
+                          [{letter}]
+                        </span>
+                        {revealedOptions[oIdx] && (
+                          <div>
+                            {isCorrect ? (
+                              <div className="w-8 h-8 rounded-full bg-emerald-500/30 border border-emerald-400 flex items-center justify-center">
+                                <Check className="w-5 h-5 text-emerald-300 animate-bounce" />
+                              </div>
+                            ) : (
+                              <div className="w-8 h-8 rounded-full bg-rose-500/30 border border-rose-400 flex items-center justify-center">
+                                <X className="w-5 h-5 text-rose-300" />
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Clue Hint */}
+              {currentQ.teacherHint && (
+                <div className="flex justify-center pt-2">
+                  {!showFullscreenHint ? (
+                    <button
+                      onClick={() => setShowFullscreenHint(true)}
+                      className="px-4 py-1.5 rounded-full bg-teal-500/15 border border-teal-500/30 text-teal-300 hover:bg-teal-500/25 text-xs font-bold flex items-center gap-1.5 transition-all shadow-md"
+                    >
+                      <Lightbulb className="w-3.5 h-3.5 text-teal-400" />
+                      <span>Reveal Classroom Hint</span>
+                    </button>
+                  ) : (
+                    <div className="bg-teal-950/80 border border-teal-400/50 px-5 py-2.5 rounded-2xl text-teal-200 text-xs sm:text-sm font-medium flex items-center gap-2 shadow-lg animate-fade-in max-w-2xl">
+                      <Lightbulb className="w-4 h-4 text-teal-300 shrink-0" />
+                      <span><strong>Teacher Clue:</strong> {currentQ.teacherHint}</span>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* 3. BOTTOM LIVE TEAMS & NAVIGATION BAR */}
-          <div className="relative z-10 border-t border-white/15 pt-4 space-y-3">
+          <div className="relative z-10 border-t border-white/15 pt-3 space-y-2.5">
             
-            <div className="flex flex-col lg:flex-row items-center justify-between gap-4">
+            <div className="flex flex-col lg:flex-row items-center justify-between gap-3">
               
               {/* Previous Question Button */}
               <button
@@ -1809,21 +2030,21 @@ export default function ClassroomQuizMaker({
                   }
                 }}
                 disabled={currentQIndex === 0}
-                className="px-4 py-2.5 rounded-2xl bg-white/10 hover:bg-white/20 disabled:opacity-30 text-white font-bold text-xs sm:text-sm flex items-center gap-2 transition-all"
-                title="Previous Question (Left Arrow)"
+                className="px-4 py-2 rounded-2xl bg-white/10 hover:bg-white/20 disabled:opacity-30 text-white font-bold text-xs sm:text-sm flex items-center gap-2 transition-all"
+                title="Previous Question (Left Arrow or P)"
               >
                 <ChevronLeft className="w-4 h-4" />
                 <span>Previous (P)</span>
               </button>
 
-              {/* LIVE TEAM SCORECARDS WITH INSTANT POINT MODIFIERS */}
-              <div className="flex items-center gap-3 overflow-x-auto smooth-scroll max-w-4xl py-1 px-2">
+              {/* LIVE TEAM SCORECARDS WITH INSTANT POINT MODIFIERS & EDIT BUTTON */}
+              <div className="flex items-center gap-2.5 overflow-x-auto smooth-scroll max-w-4xl py-1 px-1">
                 {teams.map((team, idx) => (
                   <div
                     key={team.id}
-                    className={`shrink-0 p-2.5 sm:p-3 rounded-2xl border bg-gradient-to-r ${team.color} bg-opacity-25 border-white/15 flex items-center gap-3 shadow-lg`}
+                    className={`shrink-0 p-2 sm:p-2.5 rounded-2xl border bg-gradient-to-r ${team.color} bg-opacity-25 border-white/15 flex items-center gap-2.5 shadow-lg`}
                   >
-                    <div className="w-7 h-7 rounded-xl bg-black/50 flex items-center justify-center font-mono font-bold text-xs text-white">
+                    <div className="w-6 h-6 rounded-lg bg-black/50 flex items-center justify-center font-mono font-bold text-xs text-white">
                       #{idx + 1}
                     </div>
 
@@ -1837,29 +2058,29 @@ export default function ClassroomQuizMaker({
                       </div>
                     </div>
 
-                    <div className="text-base sm:text-lg font-display font-black text-white px-1">
-                      {team.score} <span className="text-[10px] font-normal text-slate-300">pts</span>
+                    <div className="text-sm sm:text-base font-display font-black text-white px-1">
+                      {team.score} <span className="text-[9px] font-normal text-slate-300">pts</span>
                     </div>
 
                     {/* Instant Point Awards */}
                     <div className="flex items-center gap-1 border-l border-white/15 pl-2">
                       <button
                         onClick={() => handleAwardPoints(team.id, currentQ.points || 10)}
-                        className="px-2 py-1 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs shadow-md transition-transform active:scale-95"
+                        className="px-2 py-0.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs shadow-md transition-transform active:scale-95"
                         title={`Award +${currentQ.points || 10} pts to ${team.name}`}
                       >
                         +{currentQ.points || 10}
                       </button>
                       <button
                         onClick={() => handleAwardPoints(team.id, 5)}
-                        className="px-1.5 py-1 rounded-lg bg-teal-500/40 hover:bg-teal-500 text-teal-100 font-bold text-xs transition-colors"
+                        className="px-1.5 py-0.5 rounded-lg bg-teal-500/40 hover:bg-teal-500 text-teal-100 font-bold text-xs transition-colors"
                         title={`Award +5 bonus pts to ${team.name}`}
                       >
                         +5
                       </button>
                       <button
                         onClick={() => handleAwardPoints(team.id, -5)}
-                        className="px-1.5 py-1 rounded-lg bg-rose-500/30 hover:bg-rose-500 text-rose-200 font-bold text-xs transition-colors"
+                        className="px-1.5 py-0.5 rounded-lg bg-rose-500/30 hover:bg-rose-500 text-rose-200 font-bold text-xs transition-colors"
                         title={`Deduct -5 pts from ${team.name}`}
                       >
                         -5
@@ -1867,6 +2088,16 @@ export default function ClassroomQuizMaker({
                     </div>
                   </div>
                 ))}
+
+                {/* Inline Quick Edit Button */}
+                <button
+                  onClick={() => setShowEditTeamsModal(true)}
+                  className="shrink-0 px-2.5 py-2 rounded-2xl bg-purple-600/30 hover:bg-purple-600/50 border border-purple-500/40 text-purple-200 text-xs font-bold flex items-center gap-1 transition-all"
+                  title="Edit Teams, Colors & Rosters (Press E)"
+                >
+                  <Settings2 className="w-3.5 h-3.5" />
+                  <span>Edit</span>
+                </button>
               </div>
 
               {/* Next Question / Finish Button */}
@@ -1880,8 +2111,8 @@ export default function ClassroomQuizMaker({
                     setShowFullscreenHint(false);
                     handleResetTimer();
                   }}
-                  className="px-5 py-2.5 rounded-2xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-slate-950 font-extrabold text-xs sm:text-sm flex items-center gap-2 shadow-lg shadow-amber-500/20 transition-all transform hover:scale-[1.02]"
-                  title="Next Question (Right Arrow)"
+                  className="px-4 py-2 rounded-2xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-slate-950 font-extrabold text-xs sm:text-sm flex items-center gap-2 shadow-lg shadow-amber-500/20 transition-all transform hover:scale-[1.02]"
+                  title="Next Question (Right Arrow or N)"
                 >
                   <span>Next Question (N)</span>
                   <ChevronRight className="w-4 h-4" />
@@ -1889,13 +2120,13 @@ export default function ClassroomQuizMaker({
               ) : (
                 <button
                   onClick={() => {
-                    setShowFullscreenLeaderboard(true);
+                    setFullscreenLayoutMode("leaderboard");
                     quizAudio.playFanfare();
                   }}
-                  className="px-5 py-2.5 rounded-2xl bg-gradient-to-r from-yellow-400 to-amber-500 hover:from-yellow-300 hover:to-amber-400 text-slate-950 font-black text-xs sm:text-sm flex items-center gap-2 shadow-xl shadow-yellow-500/30 transition-all animate-bounce"
+                  className="px-4 py-2 rounded-2xl bg-gradient-to-r from-yellow-400 to-amber-500 hover:from-yellow-300 hover:to-amber-400 text-slate-950 font-black text-xs sm:text-sm flex items-center gap-2 shadow-xl shadow-yellow-500/30 transition-all animate-bounce"
                 >
                   <PartyPopper className="w-4 h-4" />
-                  <span>Show Final Podium!</span>
+                  <span>Final Podium!</span>
                 </button>
               )}
 
@@ -1905,7 +2136,7 @@ export default function ClassroomQuizMaker({
 
           {/* 4. TEACHER SECRET HUD MODAL (Floating Panel) */}
           {showFullscreenTeacherHUD && (
-            <div className="fixed bottom-24 right-6 z-50 w-full max-w-md bg-slate-950/95 border-2 border-amber-500/70 rounded-3xl p-5 shadow-2xl backdrop-blur-2xl animate-fade-in space-y-3">
+            <div className="fixed bottom-20 right-6 z-50 w-full max-w-md bg-slate-950/95 border-2 border-amber-500/70 rounded-3xl p-5 shadow-2xl backdrop-blur-2xl animate-fade-in space-y-3">
               <div className="flex items-center justify-between border-b border-amber-500/30 pb-2.5">
                 <div className="flex items-center gap-2 text-amber-300 font-bold text-sm">
                   <ShieldCheck className="w-4 h-4 text-amber-400" />
@@ -1952,46 +2183,18 @@ export default function ClassroomQuizMaker({
             </div>
           )}
 
-          {/* 5. LEADERBOARD PODIUM CELEBRATION MODAL */}
-          {showFullscreenLeaderboard && (
-            <div className="fixed inset-0 z-50 bg-slate-950/95 backdrop-blur-2xl flex items-center justify-center p-4 sm:p-6 md:p-8 animate-fade-in overflow-y-auto">
-              <div className="w-full max-w-4xl relative">
-                {/* Close Button Floating */}
-                <button
-                  onClick={() => setShowFullscreenLeaderboard(false)}
-                  className="absolute top-4 right-4 z-20 text-slate-300 hover:text-white p-2 rounded-xl bg-black/50 hover:bg-black/80 border border-white/10 text-sm font-bold shadow-lg"
-                  title="Close Leaderboard (Press L or Esc)"
-                >
-                  ✕ Close
-                </button>
-
-                <QuizLeaderboard
-                  teams={teams}
-                  currentQuestion={currentQ}
-                  currentQuestionIndex={currentQIndex}
-                  totalQuestions={quiz.questions.length}
-                  onAwardPoints={handleAwardPoints}
-                  onResetScores={handleResetScores}
-                  onAddTeam={(t) => {
-                    setTeams(prev => [...prev, {
-                      id: `team-${Date.now()}`,
-                      name: t.name,
-                      captainName: t.captainName,
-                      color: t.color,
-                      score: 0,
-                      members: [t.captainName]
-                    }]);
-                  }}
-                  onRemoveTeam={handleRemoveTeam}
-                  soundEnabled={soundEnabled}
-                  onToggleSound={() => setSoundEnabled(prev => !prev)}
-                  onPlayVictoryFanfare={() => quizAudio.playFanfare()}
-                />
-              </div>
-            </div>
-          )}
-
         </div>
+      )}
+
+      {/* TOP-LEVEL EDIT TEAMS MODAL (Works in both normal mode and presentation mode) */}
+      {showEditTeamsModal && (
+        <EditTeamsModal
+          isOpen={showEditTeamsModal}
+          onClose={() => setShowEditTeamsModal(false)}
+          teams={teams}
+          onSaveTeams={(updated) => setTeams(updated)}
+          onResetScores={handleResetScores}
+        />
       )}
 
     </div>

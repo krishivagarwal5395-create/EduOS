@@ -43,7 +43,7 @@ export const db = firebaseConfig.firestoreDatabaseId && firebaseConfig.firestore
   : getFirestore(app);
 
 // Authentication Helpers
-export async function signInWithGoogle(): Promise<{ user: User | null; error?: string }> {
+export async function signInWithGoogle(): Promise<{ user: User | null; error?: string; cancelled?: boolean }> {
   try {
     const result = await signInWithPopup(auth, googleProvider);
     if (result.user) {
@@ -53,16 +53,38 @@ export async function signInWithGoogle(): Promise<{ user: User | null; error?: s
     }
     return { user: null };
   } catch (error: any) {
-    console.error("Google Sign-In Popup Error:", error);
-    // If popup was blocked by browser or iframe policy, fallback to redirect or return clear error
-    if (error.code === 'auth/popup-blocked' || error.code === 'auth/cancelled-popup-request') {
+    // 1. If user simply closed the popup or cancelled:
+    if (
+      error.code === 'auth/popup-closed-by-user' ||
+      error.code === 'auth/cancelled-popup-request' ||
+      error.code === 'auth/user-cancelled'
+    ) {
+      // Normal user dismissal, not a failure. Do not log console.error or show error alert.
+      return { user: null, cancelled: true };
+    }
+
+    // 2. If popup was blocked by browser or iframe policy, fallback to redirect or return clear instruction
+    if (error.code === 'auth/popup-blocked') {
       try {
+        console.warn("Sign-in popup blocked by browser/iframe, attempting redirect fallback...");
         await signInWithRedirect(auth, googleProvider);
         return { user: null };
       } catch (redirectError: any) {
-        return { user: null, error: redirectError.message || "Sign-in popup was blocked. Please allow popups." };
+        return { user: null, error: "Sign-in popup was blocked. Please enable popups or open the app in a new tab." };
       }
     }
+
+    // 3. Unauthorized domain in Firebase console
+    if (error.code === 'auth/unauthorized-domain') {
+      console.warn("Firebase Auth unauthorized domain:", error);
+      return { 
+        user: null, 
+        error: "This domain is not authorized in Firebase Auth. Add this preview URL in Firebase Console > Authentication > Settings > Authorized Domains." 
+      };
+    }
+
+    // 4. Other network or configuration errors
+    console.warn("Google Sign-In notice:", error.message || error);
     return { user: null, error: error.message || "Failed to sign in with Google" };
   }
 }
