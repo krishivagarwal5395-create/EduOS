@@ -14,10 +14,16 @@ import {
   ChevronDown,
   ExternalLink,
   Database,
-  Layers
+  Layers,
+  Copy,
+  Check,
+  Globe,
+  ArrowUpRight,
+  HelpCircle,
+  X
 } from "lucide-react";
 import { UserProfile, CloudSyncState, SavedItem } from "../types";
-import { signInWithGoogle, signOutUser, batchSyncLocalItemsToCloud } from "../lib/firebase";
+import { signInWithGoogle, signInWithGoogleRedirect, signOutUser, batchSyncLocalItemsToCloud, GoogleAuthResult } from "../lib/firebase";
 
 interface GoogleAuthProfileProps {
   user: UserProfile | null;
@@ -37,9 +43,16 @@ export default function GoogleAuthProfile({
   const [isOpen, setIsOpen] = useState(false);
   const [isSigningIn, setIsSigningIn] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
+  const [authResult, setAuthResult] = useState<GoogleAuthResult | null>(null);
+  const [showDomainHelpModal, setShowDomainHelpModal] = useState(false);
+  const [copiedDomain, setCopiedDomain] = useState(false);
   const [isSyncingLocal, setIsSyncingLocal] = useState(false);
   const [syncSuccessMessage, setSyncSuccessMessage] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+
+  const currentHostname = typeof window !== 'undefined' ? window.location.hostname : '';
+  const currentOrigin = typeof window !== 'undefined' ? window.location.origin : '';
+  const isIframe = typeof window !== 'undefined' && window.self !== window.top;
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -55,10 +68,15 @@ export default function GoogleAuthProfile({
   const handleSignIn = async () => {
     setIsSigningIn(true);
     setAuthError(null);
+    setAuthResult(null);
     try {
       const res = await signInWithGoogle();
+      setAuthResult(res);
       if (res.error) {
         setAuthError(res.error);
+        if (res.isUnauthorizedDomain) {
+          setShowDomainHelpModal(true);
+        }
       } else if (!res.cancelled && res.user) {
         setIsOpen(false);
       }
@@ -72,6 +90,25 @@ export default function GoogleAuthProfile({
       }
     } finally {
       setIsSigningIn(false);
+    }
+  };
+
+  const handleSignInRedirect = async () => {
+    setIsSigningIn(true);
+    setAuthError(null);
+    try {
+      await signInWithGoogleRedirect();
+    } catch (e: any) {
+      setAuthError(e.message || "Redirect sign-in failed");
+      setIsSigningIn(false);
+    }
+  };
+
+  const handleCopyDomain = (textToCopy: string) => {
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(textToCopy);
+      setCopiedDomain(true);
+      setTimeout(() => setCopiedDomain(false), 3000);
     }
   };
 
@@ -104,8 +141,8 @@ export default function GoogleAuthProfile({
   return (
     <div className="relative" ref={menuRef} id="google_auth_profile_wrapper">
       {!user ? (
-        // NOT SIGNED IN - SHOW GOOGLE SIGN IN BUTTON
-        <div className="flex items-center gap-2">
+        // NOT SIGNED IN - SHOW GOOGLE SIGN IN BUTTON & QUICK HELPER
+        <div className="flex items-center gap-1.5">
           <button
             onClick={handleSignIn}
             disabled={isSigningIn}
@@ -136,6 +173,29 @@ export default function GoogleAuthProfile({
               </svg>
             )}
             <span className="font-semibold">{isSigningIn ? "Connecting..." : "Sign in with Google"}</span>
+          </button>
+
+          {/* If in iframe, button to open standalone in new tab for direct Google login */}
+          {isIframe && (
+            <a
+              href={currentOrigin}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hidden lg:flex items-center gap-1 px-2 py-1.5 rounded-xl bg-white/10 hover:bg-white/15 border border-white/15 text-slate-300 hover:text-white text-[11px] font-medium transition-colors"
+              title="Open in a new tab for seamless Google Auth popup support"
+            >
+              <ArrowUpRight className="w-3 h-3" />
+              <span>New Tab</span>
+            </a>
+          )}
+
+          {/* Quick Dropdown Toggle for Configuration/Domain Help */}
+          <button
+            onClick={() => setIsOpen(!isOpen)}
+            className="p-1.5 rounded-xl bg-white/10 hover:bg-white/15 border border-white/15 text-slate-300 hover:text-white transition-colors"
+            title="Google Sign-In Options & Domain Setup Guide"
+          >
+            <ChevronDown className="w-3.5 h-3.5" />
           </button>
         </div>
       ) : (
@@ -188,7 +248,7 @@ export default function GoogleAuthProfile({
       {/* DROPDOWN MENU */}
       {isOpen && (
         <div 
-          className="absolute right-0 mt-2 w-80 bg-slate-900/95 border border-white/15 rounded-2xl shadow-2xl backdrop-blur-2xl p-4 text-white z-50 animate-fade-in space-y-4"
+          className="absolute right-0 mt-2 w-84 sm:w-96 bg-slate-900/98 border border-white/15 rounded-2xl shadow-2xl backdrop-blur-2xl p-4 text-white z-50 animate-fade-in space-y-4"
           id="google_auth_dropdown_panel"
         >
           {user ? (
@@ -274,24 +334,38 @@ export default function GoogleAuthProfile({
             </>
           ) : (
             // Sign in prompt within dropdown
-            <div className="space-y-3 text-center py-2">
-              <div className="w-10 h-10 rounded-2xl bg-indigo-500/20 border border-indigo-500/40 flex items-center justify-center mx-auto text-indigo-400">
+            <div className="space-y-3.5 text-center py-1">
+              <div className="w-10 h-10 rounded-2xl bg-indigo-500/20 border border-indigo-500/40 flex items-center justify-center mx-auto text-indigo-400 shadow-inner">
                 <Cloud className="w-5 h-5" />
               </div>
+              
               <div>
-                <h4 className="font-bold text-sm text-white">Google Cloud Storage</h4>
-                <p className="text-xs text-slate-400 mt-0.5">
-                  Sign in with your Google account to automatically store worksheets, quizzes, question papers, and study plans in Google Cloud Firestore.
+                <h4 className="font-bold text-sm text-white">Google Cloud Firestore</h4>
+                <p className="text-xs text-slate-400 mt-0.5 leading-relaxed">
+                  Sign in with Google to persistently store your curriculum materials, quizzes, question papers, and study plans in Google Cloud.
                 </p>
               </div>
 
+              {/* Auth Error Notification */}
               {authError && (
-                <div className="p-2 rounded-xl bg-rose-500/20 border border-rose-500/30 text-rose-300 text-xs flex items-start gap-1.5 text-left">
-                  <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
-                  <span>{authError}</span>
+                <div className="p-2.5 rounded-xl bg-rose-500/20 border border-rose-500/30 text-rose-200 text-xs flex flex-col gap-2 text-left">
+                  <div className="flex items-start gap-1.5">
+                    <AlertCircle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+                    <span className="leading-snug">{authError}</span>
+                  </div>
+                  
+                  {/* Domain Setup Helper Button */}
+                  <button
+                    onClick={() => setShowDomainHelpModal(true)}
+                    className="mt-1 px-2.5 py-1 rounded-lg bg-rose-500/30 hover:bg-rose-500/50 border border-rose-400/40 text-[11px] font-bold text-white flex items-center justify-center gap-1.5 transition-colors"
+                  >
+                    <Globe className="w-3.5 h-3.5 text-rose-300" />
+                    <span>How to Authorize Domain in Firebase</span>
+                  </button>
                 </div>
               )}
 
+              {/* Main Sign in with Popup Button */}
               <button
                 onClick={handleSignIn}
                 disabled={isSigningIn}
@@ -303,12 +377,121 @@ export default function GoogleAuthProfile({
                   <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
                   <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
                 </svg>
-                <span>{isSigningIn ? "Signing in..." : "Continue with Google"}</span>
+                <span>{isSigningIn ? "Signing in..." : "Continue with Google (Popup)"}</span>
               </button>
+
+              {/* Fallback Options: Redirect Sign-in & Domain Authorizer */}
+              <div className="pt-2 border-t border-white/10 space-y-2">
+                <button
+                  onClick={handleSignInRedirect}
+                  disabled={isSigningIn}
+                  className="w-full py-2 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-white/10 text-xs font-semibold flex items-center justify-center gap-2 transition-colors"
+                >
+                  <ExternalLink className="w-3.5 h-3.5 text-indigo-400" />
+                  <span>Try Full-Page Redirect Sign-In</span>
+                </button>
+
+                <button
+                  onClick={() => setShowDomainHelpModal(true)}
+                  className="w-full py-1.5 px-3 rounded-lg text-slate-400 hover:text-slate-200 text-[11px] flex items-center justify-center gap-1.5 transition-colors"
+                >
+                  <Globe className="w-3 h-3 text-slate-400" />
+                  <span>Firebase Authorized Domain Guide</span>
+                </button>
+              </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* FIREBASE AUTHORIZED DOMAIN SETUP MODAL */}
+      {showDomainHelpModal && (
+        <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in">
+          <div className="bg-slate-900 border border-white/20 rounded-3xl max-w-lg w-full p-6 text-white shadow-2xl space-y-5">
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-white/10 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-400">
+                  <Globe className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-white">Authorize Domain in Firebase</h3>
+                  <p className="text-xs text-slate-400">Required for Google Sign-In on deployed apps</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowDomainHelpModal(false)}
+                className="p-1.5 rounded-xl hover:bg-white/10 text-slate-400 hover:text-white transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Current Hostname to Copy */}
+            <div className="space-y-2">
+              <label className="text-xs font-semibold text-slate-300">Your Current App Domain:</label>
+              <div className="flex items-center gap-2 bg-slate-950 border border-white/15 p-2.5 rounded-2xl">
+                <code className="text-xs font-mono text-amber-300 flex-1 truncate select-all">
+                  {currentHostname || "current-app-domain.run.app"}
+                </code>
+                <button
+                  onClick={() => handleCopyDomain(currentHostname)}
+                  className="px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold flex items-center gap-1.5 transition-all shadow-md active:scale-95"
+                >
+                  {copiedDomain ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                  <span>{copiedDomain ? "Copied!" : "Copy Domain"}</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Step-by-Step Instructions */}
+            <div className="bg-white/5 rounded-2xl p-4 border border-white/10 space-y-3 text-xs leading-relaxed text-slate-300">
+              <p className="font-bold text-white flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-amber-400" />
+                Quick 30-second fix in Firebase Console:
+              </p>
+              
+              <ol className="list-decimal list-inside space-y-2 text-slate-300 pl-1">
+                <li>
+                  Open <a href="https://console.firebase.google.com/" target="_blank" rel="noreferrer" className="text-indigo-300 font-bold underline inline-flex items-center gap-0.5">Firebase Console <ArrowUpRight className="w-3 h-3" /></a> and select your project.
+                </li>
+                <li>
+                  Go to <strong className="text-white">Authentication</strong> &gt; click the <strong className="text-white">Settings</strong> tab.
+                </li>
+                <li>
+                  Scroll down to <strong className="text-white">Authorized domains</strong> and click <strong className="text-amber-400 font-bold">Add Domain</strong>.
+                </li>
+                <li>
+                  Paste <code className="bg-black/50 px-1.5 py-0.5 rounded text-amber-300 font-mono text-[11px]">{currentHostname}</code> (or <code className="bg-black/50 px-1.5 py-0.5 rounded text-amber-300 font-mono text-[11px]">run.app</code>) and click <strong className="text-white">Save</strong>.
+                </li>
+              </ol>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex items-center justify-between gap-3 pt-2">
+              {isIframe && (
+                <a
+                  href={currentOrigin}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/15 border border-white/15 text-slate-200 text-xs font-bold flex items-center gap-2 transition-colors"
+                >
+                  <ArrowUpRight className="w-4 h-4" />
+                  <span>Open Standalone Tab</span>
+                </a>
+              )}
+              
+              <button
+                onClick={() => setShowDomainHelpModal(false)}
+                className="ml-auto px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition-all shadow-md"
+              >
+                Got It, Done!
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
   );
 }
+

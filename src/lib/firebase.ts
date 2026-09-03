@@ -43,7 +43,17 @@ export const db = firebaseConfig.firestoreDatabaseId && firebaseConfig.firestore
   : getFirestore(app);
 
 // Authentication Helpers
-export async function signInWithGoogle(): Promise<{ user: User | null; error?: string; cancelled?: boolean }> {
+export interface GoogleAuthResult {
+  user: User | null;
+  error?: string;
+  errorCode?: string;
+  cancelled?: boolean;
+  isUnauthorizedDomain?: boolean;
+  currentHostname?: string;
+}
+
+export async function signInWithGoogle(): Promise<GoogleAuthResult> {
+  const currentHostname = typeof window !== 'undefined' ? window.location.hostname : '';
   try {
     const result = await signInWithPopup(auth, googleProvider);
     if (result.user) {
@@ -53,39 +63,58 @@ export async function signInWithGoogle(): Promise<{ user: User | null; error?: s
     }
     return { user: null };
   } catch (error: any) {
+    const errorCode = error?.code || '';
+    
     // 1. If user simply closed the popup or cancelled:
     if (
-      error.code === 'auth/popup-closed-by-user' ||
-      error.code === 'auth/cancelled-popup-request' ||
-      error.code === 'auth/user-cancelled'
+      errorCode === 'auth/popup-closed-by-user' ||
+      errorCode === 'auth/cancelled-popup-request' ||
+      errorCode === 'auth/user-cancelled'
     ) {
-      // Normal user dismissal, not a failure. Do not log console.error or show error alert.
+      // Normal user dismissal, not a failure. Do not log console.error.
       return { user: null, cancelled: true };
     }
 
-    // 2. If popup was blocked by browser or iframe policy, fallback to redirect or return clear instruction
-    if (error.code === 'auth/popup-blocked') {
-      try {
-        console.warn("Sign-in popup blocked by browser/iframe, attempting redirect fallback...");
-        await signInWithRedirect(auth, googleProvider);
-        return { user: null };
-      } catch (redirectError: any) {
-        return { user: null, error: "Sign-in popup was blocked. Please enable popups or open the app in a new tab." };
-      }
-    }
-
-    // 3. Unauthorized domain in Firebase console
-    if (error.code === 'auth/unauthorized-domain') {
-      console.warn("Firebase Auth unauthorized domain:", error);
+    // 2. Unauthorized domain in Firebase console (Common in deployed apps / Cloud Run URLs)
+    if (errorCode === 'auth/unauthorized-domain') {
+      console.warn(`Firebase Auth: Domain "${currentHostname}" is not authorized in Firebase Console.`);
       return { 
         user: null, 
-        error: "This domain is not authorized in Firebase Auth. Add this preview URL in Firebase Console > Authentication > Settings > Authorized Domains." 
+        errorCode,
+        isUnauthorizedDomain: true,
+        currentHostname,
+        error: `Domain "${currentHostname}" is not yet added to Authorized Domains in Firebase Authentication.` 
+      };
+    }
+
+    // 3. Popup blocked by browser / iframe sandbox
+    if (errorCode === 'auth/popup-blocked') {
+      console.warn("Sign-in popup blocked by browser or iframe policy.");
+      return {
+        user: null,
+        errorCode,
+        currentHostname,
+        error: "Sign-in popup was blocked by your browser. Please allow popups or use the Redirect Sign-In option below."
       };
     }
 
     // 4. Other network or configuration errors
     console.warn("Google Sign-In notice:", error.message || error);
-    return { user: null, error: error.message || "Failed to sign in with Google" };
+    return { 
+      user: null, 
+      errorCode, 
+      currentHostname, 
+      error: error.message || "Failed to sign in with Google" 
+    };
+  }
+}
+
+export async function signInWithGoogleRedirect(): Promise<void> {
+  try {
+    await signInWithRedirect(auth, googleProvider);
+  } catch (error: any) {
+    console.error("Sign-in redirect error:", error);
+    throw error;
   }
 }
 
