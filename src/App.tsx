@@ -1,120 +1,52 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
-import { GraduationCap, AlertTriangle, X, Laptop, Cloud, Database } from "lucide-react";
+import React, { useState, useEffect } from "react";
+import { GraduationCap, AlertTriangle, X, Laptop, Database, Check } from "lucide-react";
 import TeacherView from "./components/TeacherView";
-import GoogleAuthProfile from "./components/GoogleAuthProfile";
-import { SavedItem, UserProfile, CloudSyncState } from "./types";
+import { SavedItem } from "./types";
 import { safeGetLocalStorage, safeSetLocalStorage, formatDuplicateTitle } from "./utils/storageUtils";
-import { 
-  onAuthChange, 
-  checkRedirectAuthResult, 
-  subscribeToUserSavedItems, 
-  saveItemToCloud, 
-  deleteItemFromCloud, 
-  updateItemInCloud, 
-  batchSyncLocalItemsToCloud 
-} from "./lib/firebase";
 
 export default function App() {
-  const [savedItems, setSavedItems] = useState<SavedItem[]>([]);
-  const [user, setUser] = useState<UserProfile | null>(null);
-  const [syncState, setSyncState] = useState<CloudSyncState>('local_only');
-  const [quotaWarning, setQuotaWarning] = useState<string | null>(null);
-  const [cloudBanner, setCloudBanner] = useState<string | null>(null);
-  const unsubscribeFirestoreRef = useRef<(() => void) | null>(null);
+  // 1. Initial Local Storage Load for Saved Items
+  const [savedItems, setSavedItems] = useState<SavedItem[]>(() => {
+    return safeGetLocalStorage<SavedItem[]>("eduos_saved_items", []);
+  });
 
+  const [quotaWarning, setQuotaWarning] = useState<string | null>(null);
+
+  // 2. Persistent Laptop Mode Preference
   const [isLaptopMode, setIsLaptopMode] = useState<boolean>(() => {
-    // Auto-detect laptop viewport by default if innerHeight is <= 900
+    const savedMode = safeGetLocalStorage<boolean | null>("eduos_laptop_mode", null);
+    if (savedMode !== null) return savedMode;
     if (typeof window !== 'undefined') {
       return window.innerHeight <= 900 || window.innerWidth <= 1440;
     }
     return true;
   });
 
-  // 1. Initial Local Storage Load
   useEffect(() => {
-    const loaded = safeGetLocalStorage<SavedItem[]>("eduos_saved_items", []);
-    setSavedItems(loaded);
-  }, []);
+    safeSetLocalStorage("eduos_laptop_mode", isLaptopMode);
+  }, [isLaptopMode]);
 
-  // 2. Auth State and Cloud Firestore Setup
+  // 3. Sync savedItems to LocalStorage whenever they change
   useEffect(() => {
-    // Check for any pending redirect auth results on load
-    checkRedirectAuthResult().catch(err => console.warn("Redirect check:", err));
+    safeSetLocalStorage("eduos_saved_items", savedItems);
+  }, [savedItems]);
 
-    const unsubscribeAuth = onAuthChange(async (currentUser) => {
-      setUser(currentUser);
+  // 4. Ensure Local Storage write on page unload / hide (Closing browser tab or window)
+  useEffect(() => {
+    const handleSaveOnUnload = () => {
+      safeSetLocalStorage("eduos_saved_items", savedItems);
+    };
 
-      // Clean up any previous Firestore subscription
-      if (unsubscribeFirestoreRef.current) {
-        unsubscribeFirestoreRef.current();
-        unsubscribeFirestoreRef.current = null;
-      }
-
-      if (currentUser) {
-        setSyncState('syncing');
-
-        // Subscribe to real-time Firestore updates for this user
-        const unsubscribeSnapshot = subscribeToUserSavedItems(
-          currentUser.uid,
-          (cloudItems) => {
-            // Merge or set cloud items
-            if (cloudItems && cloudItems.length > 0) {
-              setSavedItems(cloudItems);
-              safeSetLocalStorage("eduos_saved_items", cloudItems);
-              setSyncState('synced');
-            } else {
-              // If cloud is empty but local has items, sync local items to cloud
-              const currentLocal = safeGetLocalStorage<SavedItem[]>("eduos_saved_items", []);
-              if (currentLocal.length > 0) {
-                batchSyncLocalItemsToCloud(currentUser.uid, currentLocal).then(count => {
-                  if (count > 0) {
-                    setCloudBanner(`Synced ${count} existing local materials to your Firestore cloud storage!`);
-                    setTimeout(() => setCloudBanner(null), 5000);
-                  }
-                });
-              }
-              setSyncState('synced');
-            }
-          },
-          (err) => {
-            console.error("Cloud subscription error:", err);
-            setSyncState('error');
-          }
-        );
-
-        unsubscribeFirestoreRef.current = unsubscribeSnapshot;
-      } else {
-        // Logged out: fallback to local items
-        setSyncState('local_only');
-        const loaded = safeGetLocalStorage<SavedItem[]>("eduos_saved_items", []);
-        setSavedItems(loaded);
-      }
-    });
+    window.addEventListener("beforeunload", handleSaveOnUnload);
+    window.addEventListener("pagehide", handleSaveOnUnload);
 
     return () => {
-      unsubscribeAuth();
-      if (unsubscribeFirestoreRef.current) {
-        unsubscribeFirestoreRef.current();
-      }
+      window.removeEventListener("beforeunload", handleSaveOnUnload);
+      window.removeEventListener("pagehide", handleSaveOnUnload);
     };
-  }, []);
+  }, [savedItems]);
 
-  // 3. Manual Sync Handler
-  const handleManualCloudSync = useCallback(async () => {
-    if (!user) return;
-    setSyncState('syncing');
-    try {
-      const count = await batchSyncLocalItemsToCloud(user.uid, savedItems);
-      setSyncState('synced');
-      setCloudBanner(`Successfully synced ${savedItems.length} materials to Firestore cloud database.`);
-      setTimeout(() => setCloudBanner(null), 4000);
-    } catch (e) {
-      console.error("Manual cloud sync failed:", e);
-      setSyncState('error');
-    }
-  }, [user, savedItems]);
-
-  // 4. Save Item Callback (Dual Persistence: LocalStorage + Firestore Cloud)
+  // 5. Save Item Callback (Persistent Local Storage)
   const handleSaveItem = (type: SavedItem['type'], title: string, data: any) => {
     const existingTitles = savedItems.map(item => item.title);
     const uniqueTitle = formatDuplicateTitle(title, existingTitles);
@@ -127,44 +59,27 @@ export default function App() {
       data
     };
 
-    // Update Local State & Local Storage
+    // Update Local State & Local Storage immediately
     setSavedItems(prev => {
       const updated = [newItem, ...prev];
       const res = safeSetLocalStorage("eduos_saved_items", updated);
       if (res.quotaExceeded) {
-        setQuotaWarning("Browser local storage quota reached. Older saved items were automatically pruned for browser storage, but your new item is active in this session!");
+        setQuotaWarning("Browser local storage quota reached. Older saved items were automatically pruned for browser storage, but your new item is saved!");
       }
       return updated;
     });
-
-    // Write to Firestore Cloud Storage if user is logged in
-    if (user) {
-      setSyncState('syncing');
-      saveItemToCloud(user.uid, newItem).then(success => {
-        if (success) {
-          setSyncState('synced');
-        } else {
-          setSyncState('error');
-        }
-      });
-    }
   };
 
-  // 5. Delete Item Callback (LocalStorage + Firestore Cloud)
+  // 6. Delete Item Callback (Persistent Local Storage)
   const handleDeleteItem = (id: string) => {
     setSavedItems(prev => {
       const updated = prev.filter(item => item.id !== id);
       safeSetLocalStorage("eduos_saved_items", updated);
       return updated;
     });
-
-    if (user) {
-      setSyncState('syncing');
-      deleteItemFromCloud(user.uid, id).then(() => setSyncState('synced'));
-    }
   };
 
-  // 6. Update Existing Item Callback (LocalStorage + Firestore Cloud)
+  // 7. Update Existing Item Callback (Persistent Local Storage)
   const handleUpdateItem = (id: string, updatedData: any, updatedTitle?: string) => {
     setSavedItems(prev => {
       const updated = prev.map(item => {
@@ -180,15 +95,9 @@ export default function App() {
       safeSetLocalStorage("eduos_saved_items", updated);
       return updated;
     });
-
-    if (user) {
-      setSyncState('syncing');
-      updateItemInCloud(user.uid, id, updatedData, updatedTitle).then(() => setSyncState('synced'));
-    }
   };
 
   const savedIds = savedItems.map(item => item.id);
-  const localItemsCount = safeGetLocalStorage<SavedItem[]>("eduos_saved_items", []).length;
 
   return (
     <div className={`min-h-screen bg-[#0f172a] text-slate-100 flex flex-col font-sans relative overflow-x-hidden ${isLaptopMode ? 'laptop-optimized' : ''}`} id="eduos_app_container">
@@ -232,32 +141,23 @@ export default function App() {
             <span className="text-[10px] md:text-[11px] font-mono font-bold text-slate-300 uppercase tracking-wider">Teacher Suite</span>
           </div>
 
-          {/* Google Auth & Cloud Storage Profile Dropdown */}
-          <GoogleAuthProfile 
-            user={user}
-            syncState={syncState}
-            savedItemsCount={savedItems.length}
-            localItemsCount={localItemsCount}
-            onManualCloudSync={handleManualCloudSync}
-          />
+          {/* Local Storage Saved Status Badge */}
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-800/80 border border-slate-700/60 text-slate-200 text-xs font-medium shadow-sm">
+            <div className="w-6 h-6 rounded-lg bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
+              <Database className="w-3.5 h-3.5" />
+            </div>
+            <div className="flex flex-col text-left leading-none">
+              <span className="text-[11px] font-bold text-white flex items-center gap-1">
+                Local Storage
+                <Check className="w-3 h-3 text-emerald-400 inline" />
+              </span>
+              <span className="text-[10px] text-slate-400 font-mono mt-0.5">
+                {savedItems.length} {savedItems.length === 1 ? 'item' : 'items'} saved
+              </span>
+            </div>
+          </div>
         </div>
       </header>
-
-      {/* Cloud Notification Banner */}
-      {cloudBanner && (
-        <div className="bg-gradient-to-r from-indigo-900/90 to-blue-900/90 border-b border-indigo-500/40 px-4 py-2.5 flex items-center justify-between text-xs text-indigo-200 shadow-xl relative z-50 animate-fade-in" id="toast_cloud_banner">
-          <div className="flex items-center gap-2.5">
-            <Cloud className="w-4 h-4 text-indigo-300 shrink-0" />
-            <span>{cloudBanner}</span>
-          </div>
-          <button 
-            onClick={() => setCloudBanner(null)} 
-            className="p-1 hover:bg-indigo-500/20 rounded text-indigo-300 transition-colors"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-      )}
 
       {/* Storage Quota Warning Notification */}
       {quotaWarning && (
@@ -284,24 +184,23 @@ export default function App() {
             <div>
               <div className="text-xs font-mono font-bold text-indigo-400 uppercase tracking-wider mb-1 flex items-center gap-2">
                 <span>Curriculum Suite / Teacher Dashboard</span>
-                {user && (
-                  <span className="bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 px-2 py-0.5 rounded-full text-[10px] font-mono">
-                    Cloud Storage Active
-                  </span>
-                )}
+                <span className="bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 px-2 py-0.5 rounded-full text-[10px] font-mono flex items-center gap-1">
+                  <Database className="w-3 h-3" />
+                  Local Storage Persistent
+                </span>
               </div>
               <h2 className="text-xl md:text-2xl font-display font-bold text-white tracking-tight">
                 Design outstanding curriculum structures
               </h2>
               <p className="text-sm text-slate-400 mt-1 max-w-2xl">
-                Autogenerate curriculum-aligned worksheets, lesson timings, and customized exams with answer rubrics. Save and manage your resources with instant Firestore Cloud Storage synchronization.
+                Autogenerate curriculum-aligned worksheets, lesson timings, presentations, and customized exams with answer rubrics. All your materials are stored permanently in your browser's local storage.
               </p>
             </div>
             
             <div className="hidden md:flex items-center gap-2 bg-white/5 border border-white/10 px-3.5 py-2 rounded-xl self-start md:self-center shrink-0" id="status_ai_ready">
               <span className="flex h-2 w-2 rounded-full bg-emerald-400"></span>
               <span className="text-[11px] font-mono font-bold text-slate-300 uppercase tracking-wider">
-                {user ? "Cloud Synced" : "AI Engines Ready"}
+                AI Engines Ready
               </span>
             </div>
           </div>
@@ -324,10 +223,11 @@ export default function App() {
       <footer className="border-t border-white/5 bg-slate-900/40 backdrop-blur-md py-4 px-4 md:px-8 mt-6 text-center text-xs text-slate-500 relative z-10" id="main_app_footer">
         <p className="font-medium text-slate-400">EduOS AI - Advanced Educational Operating System Client</p>
         <p className="mt-0.5 font-mono text-[10px] uppercase tracking-widest text-slate-500">
-          {user ? `Connected to Google Cloud Firestore (${user.email})` : "Offline-First Local Persistence | Sign in with Google for Cloud Storage"}
+          Persistent Browser Storage Active — All data saved locally on your device
         </p>
       </footer>
 
     </div>
   );
 }
+

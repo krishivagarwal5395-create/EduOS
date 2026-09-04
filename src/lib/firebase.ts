@@ -25,8 +25,20 @@ import {
 import firebaseConfig from "../../firebase-applet-config.json";
 import { SavedItem, UserProfile, CustomInstructions } from "../types";
 
+// Firebase configuration with environment variable overrides for external hosting (e.g. Vercel)
+const env = (import.meta as any).env || {};
+const config = {
+  apiKey: env.VITE_FIREBASE_API_KEY || firebaseConfig.apiKey,
+  authDomain: env.VITE_FIREBASE_AUTH_DOMAIN || firebaseConfig.authDomain,
+  projectId: env.VITE_FIREBASE_PROJECT_ID || firebaseConfig.projectId,
+  storageBucket: env.VITE_FIREBASE_STORAGE_BUCKET || firebaseConfig.storageBucket,
+  messagingSenderId: env.VITE_FIREBASE_MESSAGING_SENDER_ID || firebaseConfig.messagingSenderId,
+  appId: env.VITE_FIREBASE_APP_ID || firebaseConfig.appId,
+  firestoreDatabaseId: env.VITE_FIREBASE_DATABASE_ID || (firebaseConfig as any).firestoreDatabaseId
+};
+
 // Initialize Firebase App singleton
-const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
+const app = getApps().length > 0 ? getApp() : initializeApp(config);
 
 // Initialize Firebase Auth
 export const auth = getAuth(app);
@@ -38,8 +50,8 @@ googleProvider.setCustomParameters({
 });
 
 // Initialize Firestore with custom databaseId if configured
-export const db = firebaseConfig.firestoreDatabaseId && firebaseConfig.firestoreDatabaseId !== "(default)"
-  ? getFirestore(app, firebaseConfig.firestoreDatabaseId)
+export const db = config.firestoreDatabaseId && config.firestoreDatabaseId !== "(default)"
+  ? getFirestore(app, config.firestoreDatabaseId)
   : getFirestore(app);
 
 // Authentication Helpers
