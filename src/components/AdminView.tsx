@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { 
   BarChart2, Shield, RefreshCw, Send, Sparkles 
 } from "lucide-react";
+import { safeFetchJson } from "../utils/apiUtils";
 
 export default function AdminView() {
   const [loading, setLoading] = useState<boolean>(false);
@@ -26,7 +27,7 @@ export default function AdminView() {
     try {
       const prompt = `Student Performance Metrics: "${performanceMetrics}". Known difficult topics identified: "${difficultTopicsList || "None specified"}". Teacher workload metrics: "${teacherWorkloadMetrics || "None specified"}". Analyze this institutional data and provide structural insights: 1. Student Performance Trends, 2. Subject/Topic Specific Bottlenecks, 3. Suggested Improvements (curriculum adjustments, active recall practices), 4. Teacher Workload Balancing Recommendations. Provide a clean, highly professional, data-driven report layout.`;
 
-      const res = await fetch("/api/edu/advisor", {
+      const data = await safeFetchJson<{ text: string }>("/api/edu/advisor", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -35,8 +36,6 @@ export default function AdminView() {
           context: "School Administrator seeking educational insights, curriculum analysis, and structural suggestions."
         }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to generate report");
       setInsightsResult(data.text);
     } catch (err: any) {
       setError(err.message || "An error occurred");
@@ -54,7 +53,7 @@ export default function AdminView() {
     try {
       const prompt = `Draft a high-quality, comprehensive school policy guide or parent newsletter draft about the following topic: "${policyTopic}". Deliver a structured policy outline, clear objectives, actionable implementation steps for teachers and students, and communication bullet-points for parents. Use formal and professional language.`;
 
-      const res = await fetch("/api/edu/advisor", {
+      const data = await safeFetchJson<{ text: string }>("/api/edu/advisor", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -63,8 +62,6 @@ export default function AdminView() {
           context: "Administrator drafting school guidelines and official announcements."
         }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to generate policy");
       setPolicyDraft(data.text);
     } catch (err: any) {
       setError(err.message || "An error occurred");

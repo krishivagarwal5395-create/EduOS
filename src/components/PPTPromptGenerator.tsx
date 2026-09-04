@@ -6,6 +6,7 @@ import {
   MonitorPlay, CheckCircle2, ChevronRight, FileText
 } from "lucide-react";
 import { PPTPromptResult, SavedItem, CustomInstructions } from "../types";
+import { safeFetchJson } from "../utils/apiUtils";
 
 interface PPTPromptGeneratorProps {
   savedMaterials: SavedItem[];
@@ -94,7 +95,7 @@ export default function PPTPromptGenerator({
     }
 
     try {
-      const res = await fetch("/api/edu/generate-ppt-prompt", {
+      const data = await safeFetchJson<PPTPromptResult>("/api/edu/generate-ppt-prompt", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -110,9 +111,6 @@ export default function PPTPromptGenerator({
           sourceContent
         })
       });
-
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to generate PPT prompt");
 
       setResult(data);
       setActiveSlideTab(0);

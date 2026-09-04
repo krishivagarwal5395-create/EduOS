@@ -4,6 +4,7 @@ import {
   Send, HelpCircle, RefreshCw, Bookmark, Check, ArrowRight, ArrowLeft 
 } from "lucide-react";
 import { Quiz, FlashcardCollection, StudyPlan, RevisionMaterial } from "../types";
+import { safeFetchJson } from "../utils/apiUtils";
 
 interface StudentViewProps {
   onSave: (type: 'quiz' | 'study-plan' | 'revision', title: string, data: any) => void;
@@ -79,13 +80,11 @@ export default function StudentView({ onSave, savedIds }: StudentViewProps) {
     setError(null);
     setExplainResult("");
     try {
-      const res = await fetch("/api/edu/explain", {
+      const data = await safeFetchJson<{ text: string }>("/api/edu/explain", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ topic: explainTopic, style: explainStyle }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Generation failed");
       setExplainResult(data.text || "No explanation returned");
     } catch (err: any) {
       setError(err.message || "An error occurred");
@@ -104,13 +103,11 @@ export default function StudentView({ onSave, savedIds }: StudentViewProps) {
     setSelectedAnswers({});
     setQuizSubmitted(false);
     try {
-      const res = await fetch("/api/edu/quiz", {
+      const data = await safeFetchJson<Quiz>("/api/edu/quiz", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ subject: quizSubject, topics: quizTopics, difficulty: quizDifficulty }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Generation failed");
       setGeneratedQuiz(data);
     } catch (err: any) {
       setError(err.message || "An error occurred");
@@ -130,13 +127,11 @@ export default function StudentView({ onSave, savedIds }: StudentViewProps) {
     setIsFlipped(false);
     setCardStats({});
     try {
-      const res = await fetch("/api/edu/flashcards", {
+      const data = await safeFetchJson<FlashcardCollection>("/api/edu/flashcards", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ topic: flashcardTopic }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Generation failed");
       setFlashcards(data);
     } catch (err: any) {
       setError(err.message || "An error occurred");
@@ -166,7 +161,7 @@ export default function StudentView({ onSave, savedIds }: StudentViewProps) {
         content: m.text
       }));
 
-      const res = await fetch("/api/edu/advisor", {
+      const data = await safeFetchJson<{ text: string }>("/api/edu/advisor", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -175,8 +170,6 @@ export default function StudentView({ onSave, savedIds }: StudentViewProps) {
           chatHistory: mappedHistory
         }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to get guide reply");
       setChatLog(prev => [...prev, { role: 'assistant', text: data.text }]);
     } catch (err: any) {
       setError(err.message || "Chat failed");
@@ -193,7 +186,7 @@ export default function StudentView({ onSave, savedIds }: StudentViewProps) {
     setError(null);
     setStudyPlan(null);
     try {
-      const res = await fetch("/api/edu/study-plan", {
+      const data = await safeFetchJson<StudyPlan>("/api/edu/study-plan", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -203,8 +196,6 @@ export default function StudentView({ onSave, savedIds }: StudentViewProps) {
           hoursPerDay
         }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Generation failed");
       setStudyPlan(data);
     } catch (err: any) {
       setError(err.message || "An error occurred");
@@ -221,7 +212,7 @@ export default function StudentView({ onSave, savedIds }: StudentViewProps) {
     setError(null);
     setRevisionResult(null);
     try {
-      const res = await fetch("/api/edu/revision", {
+      const data = await safeFetchJson<RevisionMaterial>("/api/edu/revision", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -230,8 +221,6 @@ export default function StudentView({ onSave, savedIds }: StudentViewProps) {
           grade: revisionGrade
         }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Generation failed");
       setRevisionResult(data);
     } catch (err: any) {
       setError(err.message || "An error occurred");

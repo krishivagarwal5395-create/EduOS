@@ -5,6 +5,7 @@ import {
   ChevronRight, ChevronLeft, ArrowRight, ShieldAlert, Check, Trophy
 } from "lucide-react";
 import { PersonalizedStudyPlan, StudyPlanWeek, StudyPlanDay, SavedItem, CustomInstructions } from "../types";
+import { safeFetchJson } from "../utils/apiUtils";
 
 interface StudyPlanMakerProps {
   savedMaterials: SavedItem[];
@@ -708,7 +709,7 @@ export default function StudyPlanMaker({
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch("/api/edu/generate-study-plan", {
+      const data = await safeFetchJson<PersonalizedStudyPlan>("/api/edu/generate-study-plan", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -720,9 +721,6 @@ export default function StudyPlanMaker({
           customInstructions: customInstructions?.generalTone
         })
       });
-
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to generate study plan");
 
       setCurrentPlan(data);
       setActiveWeek(1);

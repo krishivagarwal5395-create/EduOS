@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { 
   Heart, Sparkles, Send, RefreshCw, Clipboard, Check, HelpCircle 
 } from "lucide-react";
+import { safeFetchJson } from "../utils/apiUtils";
 
 export default function ParentView() {
   const [loading, setLoading] = useState<boolean>(false);
@@ -29,7 +30,7 @@ export default function ParentView() {
     try {
       const prompt = `Subjects: "${studentSubjects}". Recent results/grades: "${recentMilestones || "No specific grades provided"}". Strengths & Interests: "${strengthsOrInterests || "None specified"}". Generate an encouraging parent progress summary, positive study recommendations, constructive learning tips, and supportive feedback. Never compare children negatively. Ensure a warm, motivational, and helpful tone.`;
 
-      const res = await fetch("/api/edu/advisor", {
+      const data = await safeFetchJson<{ text: string }>("/api/edu/advisor", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -38,8 +39,6 @@ export default function ParentView() {
           context: "Parent looking for supportive advice and academic recommendation guidelines."
         }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to generate summary");
       setProgressSummary(data.text);
     } catch (err: any) {
       setError(err.message || "An error occurred");
@@ -67,7 +66,7 @@ export default function ParentView() {
         content: m.text
       }));
 
-      const res = await fetch("/api/edu/advisor", {
+      const data = await safeFetchJson<{ text: string }>("/api/edu/advisor", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -76,8 +75,6 @@ export default function ParentView() {
           chatHistory: mappedHistory
         }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to get advice");
       setChatLog(prev => [...prev, { role: 'assistant', text: data.text }]);
     } catch (err: any) {
       setError(err.message || "Failed to get advice");

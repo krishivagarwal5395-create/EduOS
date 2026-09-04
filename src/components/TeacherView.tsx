@@ -18,6 +18,7 @@ import { compileClipboardText, handleExportToWord, handleExportToPDF } from "../
 import { FileDown, Eye } from "lucide-react";
 
 import { safeGetLocalStorage, safeSetLocalStorage } from "../utils/storageUtils";
+import { safeFetchJson, compressImageFile } from "../utils/apiUtils";
 
 interface TeacherViewProps {
   onSave: (type: SavedItem['type'], title: string, data: any) => void;
@@ -178,7 +179,7 @@ export default function TeacherView({ onSave, savedIds, savedItems, onDeleteItem
         }
       }
 
-      const res = await fetch("/api/edu/lesson-plan", {
+      const data = await safeFetchJson("/api/edu/lesson-plan", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -193,25 +194,29 @@ export default function TeacherView({ onSave, savedIds, savedItems, onDeleteItem
           customInstructions: [customInstructions.lessonPlan, lessonInlineInstructions].filter(Boolean).join("\n\n")
         }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Generation failed");
       setLessonPlan(data);
     } catch (err: any) {
-      setError(err.message || "An error occurred");
+      setError(err.message || "An error occurred generating lesson plan.");
     } finally {
       setLoading(false);
     }
   };
 
-  const handleLessonFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleLessonFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setLessonFileBase64(reader.result as string);
-        setLessonFileMimeType(file.type);
-      };
-      reader.readAsDataURL(file);
+      try {
+        const { dataUrl, mimeType } = await compressImageFile(file);
+        setLessonFileBase64(dataUrl);
+        setLessonFileMimeType(mimeType);
+      } catch (_) {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          setLessonFileBase64(reader.result as string);
+          setLessonFileMimeType(file.type);
+        };
+        reader.readAsDataURL(file);
+      }
     }
   };
 
@@ -231,7 +236,7 @@ export default function TeacherView({ onSave, savedIds, savedItems, onDeleteItem
         }
       }
 
-      const res = await fetch("/api/edu/worksheet", {
+      const data = await safeFetchJson("/api/edu/worksheet", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -242,11 +247,9 @@ export default function TeacherView({ onSave, savedIds, savedItems, onDeleteItem
           customInstructions: [customInstructions.worksheet, worksheetInlineInstructions].filter(Boolean).join("\n\n")
         }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Generation failed");
       setWorksheetResult(data);
     } catch (err: any) {
-      setError(err.message || "An error occurred");
+      setError(err.message || "An error occurred generating worksheet.");
     } finally {
       setLoading(false);
     }
@@ -268,7 +271,7 @@ export default function TeacherView({ onSave, savedIds, savedItems, onDeleteItem
         }
       }
 
-      const res = await fetch("/api/edu/notebook", {
+      const data = await safeFetchJson("/api/edu/notebook", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -279,28 +282,29 @@ export default function TeacherView({ onSave, savedIds, savedItems, onDeleteItem
           customInstructions: [customInstructions.generalTone, notebookInlineInstructions].filter(Boolean).join("\n\n")
         }),
       });
-      const data = await res.json();
-      if (res.ok) {
-        setNotebookNotesResult(data);
-      } else {
-        setError(data.error || "Failed to generate notebook notes.");
-      }
-    } catch (err) {
-      setError("Network error generating notebook notes.");
+      setNotebookNotesResult(data);
+    } catch (err: any) {
+      setError(err.message || "An error occurred generating notebook notes.");
     } finally {
       setLoading(false);
     }
   };
 
-  const handleNotebookFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleNotebookFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setNotebookFileBase64(reader.result as string);
-        setNotebookFileMimeType(file.type);
-      };
-      reader.readAsDataURL(file);
+      try {
+        const { dataUrl, mimeType } = await compressImageFile(file);
+        setNotebookFileBase64(dataUrl);
+        setNotebookFileMimeType(mimeType);
+      } catch (_) {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          setNotebookFileBase64(reader.result as string);
+          setNotebookFileMimeType(file.type);
+        };
+        reader.readAsDataURL(file);
+      }
     }
   };
 
@@ -321,7 +325,7 @@ export default function TeacherView({ onSave, savedIds, savedItems, onDeleteItem
         }
       }
 
-      const res = await fetch("/api/edu/question-paper", {
+      const data = await safeFetchJson("/api/edu/question-paper", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -338,11 +342,9 @@ export default function TeacherView({ onSave, savedIds, savedItems, onDeleteItem
           customInstructions: [customInstructions.exam, examInlineInstructions].filter(Boolean).join("\n\n")
         }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Generation failed");
       setQuestionPaper(data);
     } catch (err: any) {
-      setError(err.message || "An error occurred");
+      setError(err.message || "An error occurred generating exam paper.");
     } finally {
       setLoading(false);
     }
@@ -356,7 +358,7 @@ export default function TeacherView({ onSave, savedIds, savedItems, onDeleteItem
     setError(null);
     setScanResult(null);
     try {
-      const res = await fetch("/api/edu/scan-book", {
+      const data = await safeFetchJson<{ text: string }>("/api/edu/scan-book", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -364,25 +366,29 @@ export default function TeacherView({ onSave, savedIds, savedItems, onDeleteItem
           mimeType: scanMimeType
         }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Scan failed");
       setScanResult(data.text);
     } catch (err: any) {
-      setError(err.message || "An error occurred");
+      setError(err.message || "An error occurred scanning book.");
     } finally {
       setLoading(false);
     }
   };
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setScanImage(reader.result as string);
-        setScanMimeType(file.type);
-      };
-      reader.readAsDataURL(file);
+      try {
+        const { dataUrl, mimeType } = await compressImageFile(file);
+        setScanImage(dataUrl);
+        setScanMimeType(mimeType);
+      } catch (_) {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          setScanImage(reader.result as string);
+          setScanMimeType(file.type);
+        };
+        reader.readAsDataURL(file);
+      }
     }
   };
 

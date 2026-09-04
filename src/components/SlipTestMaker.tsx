@@ -4,6 +4,7 @@ import {
   Printer, Clipboard, FileDown, Eye, Sparkles
 } from "lucide-react";
 import { SlipTest, SavedItem } from "../types";
+import { safeFetchJson } from "../utils/apiUtils";
 import { compileClipboardText, handleExportToWord, handleExportToPDF } from "../utils/exportUtils";
 
 interface SlipTestMakerProps {
@@ -64,7 +65,7 @@ export default function SlipTestMaker({
         }
       }
 
-      const res = await fetch("/api/edu/slip-test", {
+      const data = await safeFetchJson<SlipTest>("/api/edu/slip-test", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -79,8 +80,6 @@ export default function SlipTestMaker({
         })
       });
 
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to generate slip test");
       setSlipTestResult(data);
     } catch (err: any) {
       setError(err.message || "An error occurred generating slip test.");

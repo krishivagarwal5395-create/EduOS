@@ -5,6 +5,7 @@ import {
   ArrowRight, BookOpen, Bookmark, FileText, Zap, RefreshCw, X, HelpCircle
 } from "lucide-react";
 import { SavedItem, CustomInstructions } from "../types";
+import { safeFetchJson } from "../utils/apiUtils";
 
 interface AICoPilotProps {
   savedItems: SavedItem[];
@@ -98,7 +99,7 @@ How can I support your teaching today?`
           content: m.content
         }));
 
-      const res = await fetch("/api/edu/ai-assistant", {
+      const data = await safeFetchJson("/api/edu/ai-assistant", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -108,9 +109,6 @@ How can I support your teaching today?`
           chatHistory
         })
       });
-
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to receive AI response");
 
       const botMsg: ChatMessage = {
         id: (Date.now() + 1).toString(),

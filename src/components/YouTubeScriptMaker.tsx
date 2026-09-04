@@ -5,6 +5,7 @@ import {
   PlayCircle, HelpCircle, Lightbulb, BookOpen, Layers
 } from "lucide-react";
 import { YouTubeRecommendationResult, CuratedYouTubeVideo, SavedItem, CustomInstructions } from "../types";
+import { safeFetchJson } from "../utils/apiUtils";
 import { compileClipboardText, handleExportToWord, handleExportToPDF } from "../utils/exportUtils";
 
 interface YouTubeScriptMakerProps {
@@ -86,7 +87,7 @@ export default function YouTubeScriptMaker({
       const sourceContent = compileSourceContent();
       const combinedInstructions = [customInstructions.youtubeScript, customInstructions.generalTone, inlineInstructions].filter(Boolean).join("\n\n");
 
-      const res = await fetch("/api/edu/youtube-finder", {
+      const data = await safeFetchJson<YouTubeRecommendationResult>("/api/edu/youtube-finder", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -97,9 +98,6 @@ export default function YouTubeScriptMaker({
           customInstructions: combinedInstructions
         })
       });
-
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to find educational YouTube videos.");
 
       setResult(data);
       setActiveVideoIdx(0);

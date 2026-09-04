@@ -8,6 +8,7 @@ import {
   BarChart2, Presentation
 } from "lucide-react";
 import { ClassroomQuiz, ClassroomTeam, QuizQuestionItem, SavedItem, CustomInstructions } from "../types";
+import { safeFetchJson } from "../utils/apiUtils";
 import { handleExportTeacherAnswerKeyPDF, handleExportTeacherAnswerKeyWord, handleExportToPDF, handleExportToWord } from "../utils/exportUtils";
 import QuizLeaderboard from "./QuizLeaderboard";
 import EditTeamsModal from "./EditTeamsModal";
@@ -431,7 +432,7 @@ export default function ClassroomQuizMaker({
     }
 
     try {
-      const res = await fetch("/api/edu/generate-class-quiz", {
+      const data = await safeFetchJson<ClassroomQuiz>("/api/edu/generate-class-quiz", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -445,9 +446,6 @@ export default function ClassroomQuizMaker({
           sourceContent
         })
       });
-
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to generate class quiz");
 
       setQuiz(data);
       setCurrentQIndex(0);
