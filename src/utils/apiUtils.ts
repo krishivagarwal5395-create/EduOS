@@ -34,7 +34,10 @@ export async function safeFetchJson<T = any>(url: string, options?: RequestInit)
   }
 
   if (!res.ok) {
-    const errorMsg = json?.error || json?.message || `Server error (${res.status})`;
+    let errorMsg = json?.error || json?.message || `Server error (${res.status})`;
+    if (typeof errorMsg === "string" && (errorMsg.includes("expected pattern") || errorMsg.includes("INVALID_ARGUMENT"))) {
+      errorMsg = "Unable to read document format. Please upload a clear JPG, PNG, WebP, or PDF file.";
+    }
     throw new Error(errorMsg);
   }
 
@@ -43,7 +46,7 @@ export async function safeFetchJson<T = any>(url: string, options?: RequestInit)
 
 /**
  * Resizes and compresses image files before sending to server endpoints,
- * preventing Vercel / proxy 413 Payload Too Large errors.
+ * preventing Vercel / proxy 413 Payload Too Large errors and ensuring standard JPEG data.
  */
 export function compressImageFile(
   file: File, 
@@ -52,9 +55,19 @@ export function compressImageFile(
   quality = 0.85
 ): Promise<{ dataUrl: string; mimeType: string }> {
   return new Promise((resolve, reject) => {
-    if (!file.type.startsWith('image/')) {
+    const isPdf = (file.type && file.type.includes('pdf')) || file.name.toLowerCase().endsWith('.pdf');
+    if (isPdf) {
       const reader = new FileReader();
-      reader.onload = () => resolve({ dataUrl: reader.result as string, mimeType: file.type });
+      reader.onload = () => resolve({ dataUrl: reader.result as string, mimeType: 'application/pdf' });
+      reader.onerror = (err) => reject(err);
+      reader.readAsDataURL(file);
+      return;
+    }
+
+    const isImage = (file.type && file.type.startsWith('image/')) || /\.(jpg|jpeg|png|webp|heic|heif|gif)$/i.test(file.name);
+    if (!isImage) {
+      const reader = new FileReader();
+      reader.onload = () => resolve({ dataUrl: reader.result as string, mimeType: file.type || 'text/plain' });
       reader.onerror = (err) => reject(err);
       reader.readAsDataURL(file);
       return;
@@ -64,8 +77,8 @@ export function compressImageFile(
     reader.onload = (e) => {
       const img = new Image();
       img.onload = () => {
-        let width = img.width;
-        let height = img.height;
+        let width = img.width || 1200;
+        let height = img.height || 1600;
 
         if (width > maxWidth || height > maxHeight) {
           if (width > height) {
@@ -82,16 +95,20 @@ export function compressImageFile(
         canvas.height = height;
         const ctx = canvas.getContext('2d');
         if (!ctx) {
-          resolve({ dataUrl: e.target?.result as string, mimeType: file.type });
+          resolve({ dataUrl: e.target?.result as string, mimeType: file.type || 'image/jpeg' });
           return;
         }
 
-        ctx.drawImage(img, 0, 0, width, height);
-        const mimeType = 'image/jpeg';
-        const dataUrl = canvas.toDataURL(mimeType, quality);
-        resolve({ dataUrl, mimeType });
+        try {
+          ctx.drawImage(img, 0, 0, width, height);
+          const mimeType = 'image/jpeg';
+          const dataUrl = canvas.toDataURL(mimeType, quality);
+          resolve({ dataUrl, mimeType });
+        } catch (_) {
+          resolve({ dataUrl: e.target?.result as string, mimeType: file.type || 'image/jpeg' });
+        }
       };
-      img.onerror = () => resolve({ dataUrl: e.target?.result as string, mimeType: file.type });
+      img.onerror = () => resolve({ dataUrl: e.target?.result as string, mimeType: file.type || 'image/jpeg' });
       img.src = e.target?.result as string;
     };
     reader.onerror = (err) => reject(err);

@@ -149,10 +149,40 @@ function parseGeminiJson<T = any>(rawText: string | undefined, fallback: T): T {
   }
 }
 
+function cleanMimeType(raw: string | undefined | null): string {
+  if (!raw) return "image/jpeg";
+  let str = String(raw).toLowerCase().trim();
+  if (str.startsWith("data:")) str = str.slice(5);
+  str = str.split(";")[0].trim();
+  
+  if (str === "image/jpg" || str === "image/pjpeg") return "image/jpeg";
+  if (str.includes("pdf")) return "application/pdf";
+  if (str.includes("png")) return "image/png";
+  if (str.includes("webp")) return "image/webp";
+  if (str.includes("heic")) return "image/heic";
+  if (str.includes("heif")) return "image/heif";
+  if (str.includes("jpeg") || str.includes("jpg")) return "image/jpeg";
+  if (str.includes("gif")) return "image/gif";
+  if (str.includes("text") || str.includes("plain") || str.includes("markdown")) return "text/plain";
+  return "image/jpeg";
+}
+
 function cleanBase64Data(raw: string | undefined | null): string {
   if (!raw) return "";
-  const str = String(raw).trim();
-  return str.includes(",") ? str.split(",")[1] : str;
+  let str = String(raw).trim();
+  const commaIdx = str.indexOf(",");
+  if (commaIdx !== -1 && commaIdx < 150) {
+    str = str.slice(commaIdx + 1);
+  }
+  // Strip whitespace, carriage returns, newlines, tabs
+  str = str.replace(/[\s\r\n\t]+/g, "").replace(/-/g, "+").replace(/_/g, "/");
+  try {
+    const buf = Buffer.from(str, "base64");
+    if (buf.length === 0) return "";
+    return buf.toString("base64");
+  } catch (_) {
+    return str;
+  }
 }
 
 // Global check middleware
@@ -393,7 +423,7 @@ app.post("/api/edu/lesson-plan", checkGeminiConfig, async (req, res) => {
         parts.push({
           inlineData: {
             data: cleanData,
-            mimeType: fileMimeType
+            mimeType: cleanMimeType(fileMimeType)
           }
         });
       }
@@ -931,7 +961,7 @@ app.post("/api/edu/scan-book", checkGeminiConfig, async (req, res) => {
       return res.status(400).json({ error: "Invalid image or document base64 data" });
     }
 
-    const effectiveMimeType = mimeType || "image/jpeg";
+    const effectiveMimeType = cleanMimeType(mimeType);
 
     // Handle plain text files directly if uploaded
     if (effectiveMimeType.startsWith("text/")) {
@@ -993,7 +1023,11 @@ CRITICAL OCR INSTRUCTIONS:
     res.json({ text: extractedText, suggestedSubject, suggestedChapter });
   } catch (error: any) {
     console.error("Book Scanner Error:", error);
-    res.status(500).json({ error: error.message || "Failed to scan book page / extract text" });
+    const msg = error.message || "";
+    const userFriendly = msg.includes("expected pattern") || msg.includes("INVALID_ARGUMENT")
+      ? "Unable to read the document format. Please upload a clear image (JPG, PNG, WebP) or PDF file."
+      : (msg || "Failed to scan book page / extract text");
+    res.status(500).json({ error: userFriendly });
   }
 });
 
@@ -1017,7 +1051,7 @@ app.post("/api/edu/notebook", checkGeminiConfig, async (req, res) => {
         parts.push({
           inlineData: {
             data: cleanData,
-            mimeType: fileMimeType
+            mimeType: cleanMimeType(fileMimeType)
           }
         });
       }

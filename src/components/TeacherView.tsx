@@ -356,13 +356,22 @@ export default function TeacherView({ onSave, savedIds, savedItems, onDeleteItem
     setError(null);
     setScanResult(null);
     try {
-      const rawBase64 = scanImage.includes(',') ? scanImage.split(',')[1] : scanImage;
+      const commaIdx = scanImage.indexOf(',');
+      const rawBase64 = commaIdx !== -1 ? scanImage.slice(commaIdx + 1) : scanImage;
+      
+      let cleanType = scanMimeType.toLowerCase().trim().split(';')[0];
+      if (cleanType.includes('pdf')) cleanType = 'application/pdf';
+      else if (cleanType.includes('png')) cleanType = 'image/png';
+      else if (cleanType.includes('webp')) cleanType = 'image/webp';
+      else if (cleanType.includes('text')) cleanType = 'text/plain';
+      else cleanType = 'image/jpeg';
+
       const data = await safeFetchJson<{ text: string; suggestedSubject?: string; suggestedChapter?: string }>("/api/edu/scan-book", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          imageBase64: rawBase64,
-          mimeType: scanMimeType
+          imageBase64: rawBase64.trim(),
+          mimeType: cleanType
         }),
       });
       setScanResult(data.text);
@@ -377,33 +386,43 @@ export default function TeacherView({ onSave, savedIds, savedItems, onDeleteItem
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      if (file.type.startsWith('text/') || file.name.endsWith('.txt') || file.name.endsWith('.md')) {
-        const reader = new FileReader();
-        reader.onload = (ev) => {
-          const text = ev.target?.result as string;
-          setScanResult(text);
-          const base64 = btoa(unescape(encodeURIComponent(text)));
-          setScanImage(`data:text/plain;base64,${base64}`);
-          setScanMimeType("text/plain");
-          if (!scanChapterName) setScanChapterName(file.name.replace(/\.[^/.]+$/, ""));
-        };
-        reader.readAsText(file);
-        return;
-      }
+    if (!file) return;
 
-      try {
-        const { dataUrl, mimeType } = await compressImageFile(file);
-        setScanImage(dataUrl);
-        setScanMimeType(mimeType);
-      } catch (_) {
-        const reader = new FileReader();
-        reader.onloadend = () => {
-          setScanImage(reader.result as string);
-          setScanMimeType(file.type || 'application/pdf');
-        };
-        reader.readAsDataURL(file);
-      }
+    if (file.type.startsWith('text/') || file.name.endsWith('.txt') || file.name.endsWith('.md')) {
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        const text = (ev.target?.result as string) || "";
+        setScanResult(text);
+        try {
+          const encoder = new TextEncoder();
+          const bytes = encoder.encode(text);
+          let binary = '';
+          for (let i = 0; i < bytes.length; i++) {
+            binary += String.fromCharCode(bytes[i]);
+          }
+          const base64 = btoa(binary);
+          setScanImage(`data:text/plain;base64,${base64}`);
+        } catch (_) {
+          setScanImage(`data:text/plain;base64,${btoa(unescape(encodeURIComponent(text)))}`);
+        }
+        setScanMimeType("text/plain");
+        if (!scanChapterName) setScanChapterName(file.name.replace(/\.[^/.]+$/, ""));
+      };
+      reader.readAsText(file);
+      return;
+    }
+
+    try {
+      const { dataUrl, mimeType } = await compressImageFile(file);
+      setScanImage(dataUrl);
+      setScanMimeType(mimeType);
+    } catch (_) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setScanImage(reader.result as string);
+        setScanMimeType(file.type || (file.name.toLowerCase().endsWith('.pdf') ? 'application/pdf' : 'image/jpeg'));
+      };
+      reader.readAsDataURL(file);
     }
   };
 
@@ -1467,12 +1486,12 @@ export default function TeacherView({ onSave, savedIds, savedItems, onDeleteItem
                         <div className="text-center">
                           <ImageIcon className="w-8 h-8 mx-auto mb-2 opacity-70" />
                           <span className="text-sm font-medium">{scanImage ? "Document selected - Click to change" : "Click to browse or drag & drop"}</span>
-                          <span className="block text-xs opacity-70 mt-1">Supports JPG, PNG, PDF</span>
+                          <span className="block text-xs opacity-70 mt-1">Supports JPG, PNG, WebP, PDF, TXT</span>
                         </div>
                       </div>
                       <input 
                         type="file" 
-                        accept="image/png, image/jpeg, application/pdf"
+                        accept="image/png, image/jpeg, image/webp, application/pdf, .pdf, text/plain, .txt, .md"
                         onChange={handleImageUpload}
                         className="hidden" 
                       />
