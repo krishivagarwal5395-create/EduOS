@@ -149,7 +149,13 @@ export default function TeacherView({ onSave, savedIds, savedItems, onDeleteItem
   // Save feedbacks
   const [saveSuccess, setSaveSuccess] = useState<Record<string, boolean>>({});
 
-  const savedChapters = savedItems.filter(item => item.type === 'scanned-chapter');
+  const savedChapters = savedItems.filter(item => item.type === 'scanned-chapter' || item.type === 'chapter' || item.type === 'revision');
+
+  const getSavedChapterText = (item?: SavedItem) => {
+    if (!item || !item.data) return "";
+    if (typeof item.data === "string") return item.data;
+    return item.data.content || item.data.text || item.data.chapterContent || JSON.stringify(item.data);
+  };
 
   useEffect(() => {
     setError(null);
@@ -174,9 +180,7 @@ export default function TeacherView({ onSave, savedIds, savedItems, onDeleteItem
       let sourceContent = "";
       if (lessonSelectedChapterId !== "custom") {
         const chapter = savedItems.find(i => i.id === lessonSelectedChapterId);
-        if (chapter && chapter.type === "scanned-chapter") {
-          sourceContent = chapter.data.content;
-        }
+        sourceContent = getSavedChapterText(chapter);
       }
 
       const data = await safeFetchJson("/api/edu/lesson-plan", {
@@ -231,9 +235,7 @@ export default function TeacherView({ onSave, savedIds, savedItems, onDeleteItem
       let chapterContent = "";
       if (worksheetSelectedChapterId !== "custom") {
         const chapter = savedItems.find(i => i.id === worksheetSelectedChapterId);
-        if (chapter && chapter.type === "scanned-chapter") {
-          chapterContent = chapter.data.content;
-        }
+        chapterContent = getSavedChapterText(chapter);
       }
 
       const data = await safeFetchJson("/api/edu/worksheet", {
@@ -266,9 +268,7 @@ export default function TeacherView({ onSave, savedIds, savedItems, onDeleteItem
       let sourceContent = "";
       if (notebookSelectedChapterId !== "custom") {
         const chapter = savedItems.find(i => i.id === notebookSelectedChapterId);
-        if (chapter && chapter.type === "scanned-chapter") {
-          sourceContent = chapter.data.content;
-        }
+        sourceContent = getSavedChapterText(chapter);
       }
 
       const data = await safeFetchJson("/api/edu/notebook", {
@@ -320,9 +320,7 @@ export default function TeacherView({ onSave, savedIds, savedItems, onDeleteItem
       let chapterContent = "";
       if (examSelectedChapterId !== "custom") {
         const chapter = savedItems.find(i => i.id === examSelectedChapterId);
-        if (chapter && chapter.type === "scanned-chapter") {
-          chapterContent = chapter.data.content;
-        }
+        chapterContent = getSavedChapterText(chapter);
       }
 
       const data = await safeFetchJson("/api/edu/question-paper", {
@@ -351,24 +349,27 @@ export default function TeacherView({ onSave, savedIds, savedItems, onDeleteItem
   };
 
   // 4. Book Scanner Call
-  const handleScanSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleScanSubmit = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
     if (!scanImage || !scanMimeType) return;
     setLoading(true);
     setError(null);
     setScanResult(null);
     try {
-      const data = await safeFetchJson<{ text: string }>("/api/edu/scan-book", {
+      const rawBase64 = scanImage.includes(',') ? scanImage.split(',')[1] : scanImage;
+      const data = await safeFetchJson<{ text: string; suggestedSubject?: string; suggestedChapter?: string }>("/api/edu/scan-book", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          imageBase64: scanImage.split(',')[1],
+          imageBase64: rawBase64,
           mimeType: scanMimeType
         }),
       });
       setScanResult(data.text);
+      if (data.suggestedSubject && !scanSubject) setScanSubject(data.suggestedSubject);
+      if (data.suggestedChapter && !scanChapterName) setScanChapterName(data.suggestedChapter);
     } catch (err: any) {
-      setError(err.message || "An error occurred scanning book.");
+      setError(err.message || "An error occurred scanning book / extracting text.");
     } finally {
       setLoading(false);
     }
@@ -377,6 +378,20 @@ export default function TeacherView({ onSave, savedIds, savedItems, onDeleteItem
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      if (file.type.startsWith('text/') || file.name.endsWith('.txt') || file.name.endsWith('.md')) {
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+          const text = ev.target?.result as string;
+          setScanResult(text);
+          const base64 = btoa(unescape(encodeURIComponent(text)));
+          setScanImage(`data:text/plain;base64,${base64}`);
+          setScanMimeType("text/plain");
+          if (!scanChapterName) setScanChapterName(file.name.replace(/\.[^/.]+$/, ""));
+        };
+        reader.readAsText(file);
+        return;
+      }
+
       try {
         const { dataUrl, mimeType } = await compressImageFile(file);
         setScanImage(dataUrl);
@@ -385,7 +400,7 @@ export default function TeacherView({ onSave, savedIds, savedItems, onDeleteItem
         const reader = new FileReader();
         reader.onloadend = () => {
           setScanImage(reader.result as string);
-          setScanMimeType(file.type);
+          setScanMimeType(file.type || 'application/pdf');
         };
         reader.readAsDataURL(file);
       }

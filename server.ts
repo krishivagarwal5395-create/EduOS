@@ -149,6 +149,12 @@ function parseGeminiJson<T = any>(rawText: string | undefined, fallback: T): T {
   }
 }
 
+function cleanBase64Data(raw: string | undefined | null): string {
+  if (!raw) return "";
+  const str = String(raw).trim();
+  return str.includes(",") ? str.split(",")[1] : str;
+}
+
 // Global check middleware
 const checkGeminiConfig = (req: express.Request, res: express.Response, next: express.NextFunction) => {
   if (!getGeminiClient()) {
@@ -382,12 +388,15 @@ app.post("/api/edu/lesson-plan", checkGeminiConfig, async (req, res) => {
 
     const parts: any[] = [{ text: prompt }];
     if (fileBase64 && fileMimeType) {
-      parts.push({
-        inlineData: {
-          data: fileBase64,
-          mimeType: fileMimeType
-        }
-      });
+      const cleanData = cleanBase64Data(fileBase64);
+      if (cleanData) {
+        parts.push({
+          inlineData: {
+            data: cleanData,
+            mimeType: fileMimeType
+          }
+        });
+      }
     }
 
     const response = await callGeminiWithRetry({
@@ -909,15 +918,44 @@ app.post("/api/edu/revision", checkGeminiConfig, async (req, res) => {
   }
 });
 
-// 10. OCR Book Scanner Endpoint
+// 10. OCR Book Scanner & Chapter Text Extraction Endpoint
 app.post("/api/edu/scan-book", checkGeminiConfig, async (req, res) => {
   try {
     const { imageBase64, mimeType } = req.body;
-    if (!imageBase64 || !mimeType) {
-      return res.status(400).json({ error: "Image data and mimeType are required" });
+    if (!imageBase64) {
+      return res.status(400).json({ error: "Image data or document base64 is required" });
     }
 
-    const prompt = "You are an educational OCR book scanner. Extract the text from this textbook page accurately. Preserve the heading structures, paragraphs, and any important lists or key terms. Format the output cleanly using Markdown.";
+    const cleanData = cleanBase64Data(imageBase64);
+    if (!cleanData) {
+      return res.status(400).json({ error: "Invalid image or document base64 data" });
+    }
+
+    const effectiveMimeType = mimeType || "image/jpeg";
+
+    // Handle plain text files directly if uploaded
+    if (effectiveMimeType.startsWith("text/")) {
+      try {
+        const decodedText = Buffer.from(cleanData, "base64").toString("utf-8");
+        return res.json({ text: decodedText, suggestedSubject: "", suggestedChapter: "" });
+      } catch (_) {}
+    }
+
+    const prompt = `You are an expert optical character recognition (OCR) and educational textbook digitizer.
+Extract ALL visible text from this textbook page, document image, or file accurately and completely.
+
+CRITICAL OCR INSTRUCTIONS:
+1. Transcribe EVERY word, heading, subheading, paragraph, definition, list item, exercise question, formula, equation, table, diagram label, and sidebar note.
+2. Do NOT summarize, shorten, or omit any text or sections.
+3. Maintain the natural reading order for multi-column page layouts.
+4. Format the extracted text in clean, professional Markdown with clear headers, bold terms, and bullet points.
+5. At the very end of your response, output a JSON metadata block on a new line formatted strictly as:
+\`\`\`json
+{
+  "suggestedSubject": "Inferred Subject Name, e.g. Science",
+  "suggestedChapter": "Inferred Chapter Name, e.g. Chapter 4: Ecosystems"
+}
+\`\`\``;
 
     const response = await callGeminiWithRetry({
       model: "gemini-3.8-flash",
@@ -928,8 +966,8 @@ app.post("/api/edu/scan-book", checkGeminiConfig, async (req, res) => {
             { text: prompt },
             {
               inlineData: {
-                data: imageBase64,
-                mimeType: mimeType
+                data: cleanData,
+                mimeType: effectiveMimeType
               }
             }
           ]
@@ -937,10 +975,25 @@ app.post("/api/edu/scan-book", checkGeminiConfig, async (req, res) => {
       ]
     });
 
-    res.json({ text: response.text });
+    const rawResponse = response.text || "";
+    let extractedText = rawResponse;
+    let suggestedSubject = "";
+    let suggestedChapter = "";
+
+    const jsonMatch = rawResponse.match(/```json\s*(\{[\s\S]*?\})\s*```/);
+    if (jsonMatch) {
+      try {
+        const parsedMeta = JSON.parse(jsonMatch[1]);
+        suggestedSubject = parsedMeta.suggestedSubject || "";
+        suggestedChapter = parsedMeta.suggestedChapter || "";
+        extractedText = rawResponse.replace(/```json\s*\{[\s\S]*?\}\s*```/, "").trim();
+      } catch (_) {}
+    }
+
+    res.json({ text: extractedText, suggestedSubject, suggestedChapter });
   } catch (error: any) {
     console.error("Book Scanner Error:", error);
-    res.status(500).json({ error: error.message || "Failed to scan book page" });
+    res.status(500).json({ error: error.message || "Failed to scan book page / extract text" });
   }
 });
 
@@ -959,12 +1012,15 @@ app.post("/api/edu/notebook", checkGeminiConfig, async (req, res) => {
 
     const parts: any[] = [{ text: prompt }];
     if (fileBase64 && fileMimeType) {
-      parts.push({
-        inlineData: {
-          data: fileBase64,
-          mimeType: fileMimeType
-        }
-      });
+      const cleanData = cleanBase64Data(fileBase64);
+      if (cleanData) {
+        parts.push({
+          inlineData: {
+            data: cleanData,
+            mimeType: fileMimeType
+          }
+        });
+      }
     }
 
     const response = await callGeminiWithRetry({

@@ -257,7 +257,7 @@ export interface NotebookNotes {
 
 export interface SavedItem {
   id: string;
-  type: 'quiz' | 'study-plan' | 'lesson-plan' | 'worksheet' | 'question-paper' | 'revision' | 'scanned-chapter' | 'notebook' | 'slip-test' | 'presentation' | 'youtube-script' | 'youtube-recommendation' | 'ppt-prompt' | 'class-quiz' | 'exam-study-plan';
+  type: 'quiz' | 'study-plan' | 'lesson-plan' | 'worksheet' | 'question-paper' | 'revision' | 'scanned-chapter' | 'chapter' | 'notebook' | 'slip-test' | 'presentation' | 'youtube-script' | 'youtube-recommendation' | 'ppt-prompt' | 'class-quiz' | 'exam-study-plan';
   title: string;
   date: string;
   data: any;

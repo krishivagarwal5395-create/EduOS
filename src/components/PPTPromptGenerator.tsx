@@ -84,8 +84,8 @@ export default function PPTPromptGenerator({
     if (selectedMaterialId !== "none") {
       const found = savedMaterials.find(m => m.id === selectedMaterialId);
       if (found) {
-        if (found.type === 'scanned-chapter') {
-          sourceContent = found.data?.content || "";
+        if (found.type === 'scanned-chapter' || found.type === 'chapter' || found.type === 'revision') {
+          sourceContent = found.data?.content || found.data?.text || found.data?.chapterContent || (typeof found.data === 'string' ? found.data : JSON.stringify(found.data));
         } else if (found.type === 'notebook') {
           sourceContent = `${found.data?.summary || ""}\n${(found.data?.sections || []).map((s: any) => `${s.heading}:\n${s.points?.join("\n")}`).join("\n\n")}`;
         } else {

@@ -60,8 +60,8 @@ export default function SlipTestMaker({
       let chapterContent = "";
       if (selectedChapterId !== "custom") {
         const chapter = savedChapters.find(c => c.id === selectedChapterId);
-        if (chapter && chapter.type === "scanned-chapter") {
-          chapterContent = chapter.data.content;
+        if (chapter && chapter.data) {
+          chapterContent = typeof chapter.data === "string" ? chapter.data : (chapter.data.content || chapter.data.text || chapter.data.chapterContent || JSON.stringify(chapter.data));
         }
       }
 
