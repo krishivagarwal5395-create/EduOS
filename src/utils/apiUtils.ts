@@ -25,7 +25,7 @@ export async function safeFetchJson<T = any>(url: string, options?: RequestInit)
         throw new Error("The AI service is temporarily experiencing high demand. Please try again in a moment.");
       }
       if (res.status === 404) {
-        throw new Error("API route not found on server (404). Please ensure the backend server is running.");
+        throw new Error("API route not found (404). If you are viewing a deployed or shared version of the app, please re-deploy or re-share your project from Google AI Studio so the latest backend endpoints are published.");
       }
       
       const cleanSnippet = responseText.replace(/<[^>]*>?/gm, ' ').replace(/\s+/g, ' ').trim().slice(0, 160);

@@ -1,5 +1,6 @@
 import express from "express";
 import path from "path";
+import fs from "fs";
 import crypto from "crypto";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI, Type } from "@google/genai";
@@ -10,7 +11,24 @@ dotenv.config();
 const app = express();
 const PORT = 3000;
 
+// Permissive CORS middleware for dev and deployed environments (handling OPTIONS preflight)
+app.use((req, res, next) => {
+  res.header("Access-Control-Allow-Origin", "*");
+  res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, PATCH, OPTIONS");
+  res.header("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With, Accept");
+  if (req.method === "OPTIONS") {
+    return res.sendStatus(204);
+  }
+  next();
+});
+
 app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+
+// Health Check Endpoint
+app.get("/api/health", (req, res) => {
+  res.json({ status: "ok", service: "EduOS AI Backend", timestamp: new Date().toISOString() });
+});
 
 // Lazy initialization for Gemini SDK with User-Agent header
 let aiClient: GoogleGenAI | null = null;
@@ -949,7 +967,7 @@ app.post("/api/edu/revision", checkGeminiConfig, async (req, res) => {
 });
 
 // 10. OCR Book Scanner & Chapter Text Extraction Endpoint
-app.post("/api/edu/scan-book", checkGeminiConfig, async (req, res) => {
+app.post(["/api/edu/scan-book", "/api/edu/scan-book/"], checkGeminiConfig, async (req, res) => {
   try {
     const { imageBase64, mimeType } = req.body;
     if (!imageBase64) {
@@ -2513,24 +2531,44 @@ CANVA AI REMIX REQUIREMENTS:
   }
 });
 
+// Unmatched API route handler (guarantees clients get JSON 404, not HTML)
+app.all("/api/*", (req, res) => {
+  res.status(404).json({
+    error: `API route ${req.method} ${req.originalUrl} not found on server. Please ensure the backend is running and up-to-date.`
+  });
+});
+
 // Serve Vite or Static files depending on Environment
 async function startServer() {
-  if (process.env.NODE_ENV !== "production") {
+  const isProduction =
+    process.env.NODE_ENV === "production" ||
+    Boolean(process.env.K_SERVICE) ||
+    (typeof __filename !== "undefined" && __filename.endsWith(".cjs")) ||
+    (fs.existsSync(path.join(process.cwd(), "dist", "index.html")) && !process.argv[1]?.endsWith("server.ts"));
+
+  if (!isProduction) {
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa",
     });
     app.use(vite.middlewares);
   } else {
-    const distPath = path.join(process.cwd(), 'dist');
+    const distPath = fs.existsSync(path.join(process.cwd(), "dist"))
+      ? path.join(process.cwd(), "dist")
+      : path.resolve(__dirname, "..", "dist");
     app.use(express.static(distPath));
-    app.get('*', (req, res) => {
-      res.sendFile(path.join(distPath, 'index.html'));
+    app.get("*", (req, res) => {
+      const indexFile = path.join(distPath, "index.html");
+      if (fs.existsSync(indexFile)) {
+        res.sendFile(indexFile);
+      } else {
+        res.status(404).send("Application dist/index.html not found.");
+      }
     });
   }
 
   app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server running on port ${PORT}`);
+    console.log(`Server running on port ${PORT} [Mode: ${isProduction ? "production" : "development"}]`);
   });
 }
 
